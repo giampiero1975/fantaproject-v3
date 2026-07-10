@@ -8,7 +8,7 @@
         <title>{{ config('app.name', 'FantaOracle') }}</title>
 
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=poppins:400,500,600&display=swap" rel="stylesheet" />
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
@@ -40,21 +40,21 @@
                 </flux:sidebar.item>
 
                 @hasanyrole('admin|super_admin')
-                    <flux:sidebar.group heading="Administration" expandable class="grid">
+                    <flux:sidebar.group class="fo-sidebar-group grid" heading="Administration" expandable :expanded="false">
                         <flux:sidebar.item class="fo-sidebar-item" icon="users" href="#">Utenti</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="shield-check" href="#">Ruoli e permessi</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="circle-stack" href="#">Database</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="cog-6-tooth" href="#">Configurazione</flux:sidebar.item>
                     </flux:sidebar.group>
 
-                    <flux:sidebar.group heading="Diagnostics" expandable class="grid">
+                    <flux:sidebar.group class="fo-sidebar-group grid" heading="Diagnostics" expandable :expanded="false">
                         <flux:sidebar.item class="fo-sidebar-item" icon="heart" href="#">Stato sistema</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="queue-list" href="#">Code e job</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="document-text" href="#">Log</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="signal" href="#">API</flux:sidebar.item>
                     </flux:sidebar.group>
 
-                    <flux:sidebar.group heading="Operations" expandable class="grid">
+                    <flux:sidebar.group class="fo-sidebar-group grid" heading="Operations" expandable :expanded="false">
                         <flux:sidebar.item class="fo-sidebar-item" icon="arrow-down-tray" href="#">Importazioni</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="chart-bar-square" href="#">Proiezioni</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="sparkles" href="#">Oracle Engine</flux:sidebar.item>
