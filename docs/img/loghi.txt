@@ -1,0 +1,62 @@
+Sì: per questo caso meglio **PNG trasparenti ufficiali**.
+
+Userei così:
+
+```text
+public/brand/fantaoracle-icon-full-dark.png
+```
+
+Per:
+- logo nella card login
+- logo nella navbar su sfondo scuro
+
+```text
+public/brand/fantaoracle-icon-full.png
+```
+
+Per:
+- simbolo grande nella hero
+- favicon/icone derivate se serve
+
+Perché PNG e non SVG in questo caso:
+- il logo ha effetti “glass”, glow, sfumature e volume;
+- replicarlo in SVG puro viene male;
+- il PNG ufficiale preserva il look esatto;
+- trasparente funziona bene su sfondi scuri.
+
+SVG avrebbe senso solo se avessimo il vettoriale originale prodotto dal designer. Altrimenti meglio PNG pulito, alta risoluzione, trasparente.
+
+FantaOracle Brand Kit/
+
+Logo/
+ ├── fantaoracle-main.svg
+ ├── fantaoracle-main.png
+ ├── fantaoracle-dark.png
+ ├── fantaoracle-white.png
+ ├── fantaoracle-corporate.svg
+ ├── fantaoracle-corporate.png
+
+Icon/
+ ├── icon.svg
+ ├── icon-1024.png
+ ├── icon-512.png
+ ├── icon-256.png
+ ├── icon-128.png
+ ├── icon-64.png
+ ├── icon-32.png
+
+Favicon/
+ ├── favicon.ico
+ ├── favicon-32.png
+ ├── favicon-16.png
+ ├── apple-touch-icon.png
+ ├── android-512.png
+
+Documents/
+ ├── pdf-header.png
+ ├── partner-footer.png
+ ├── watermark.png
+
+Source/
+ ├── FantaOracle_Master.svg
+ ├── FantaOracle_Master.ai
