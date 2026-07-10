@@ -6,38 +6,46 @@
 @theme {
     --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
 
-    --color-oracle-50: #f6f2ff;
-    --color-oracle-100: #eee7ff;
-    --color-oracle-200: #dfd1ff;
-    --color-oracle-300: #c8adff;
-    --color-oracle-400: #a874ff;
-    --color-oracle-500: #8b3dff;
-    --color-oracle-600: #7b2cff;
-    --color-oracle-700: #6820dc;
-    --color-oracle-800: #551caf;
-    --color-oracle-900: #46198c;
-
-    --color-oracle-bg: #050b18;
-    --color-oracle-surface: #08152b;
-    --color-oracle-panel: #0e1e3a;
-    --color-oracle-border: #203250;
+    /* Official Fanta Oracle brand colors */
+    --color-oracle-purple: #7b2cff;
     --color-oracle-blue: #2962ff;
+    --color-oracle-corporate: #0d1b3d;
+
+    /* UI aliases derived from the official palette */
+    --color-oracle-bg: #071126;
+    --color-oracle-surface: #0d1b3d;
+    --color-oracle-panel: #13264f;
+    --color-oracle-border: #263a63;
 }
 
 :root {
     color-scheme: dark;
-    --fo-bg: #050b18;
-    --fo-surface: #08152b;
-    --fo-panel: #0e1e3a;
-    --fo-panel-soft: #112443;
-    --fo-border: rgba(148, 163, 184, 0.16);
-    --fo-text: #f8fafc;
-    --fo-muted: #94a3b8;
+
+    /* Brand palette: never redefine these outside this file. */
     --fo-purple: #7b2cff;
     --fo-blue: #2962ff;
+    --fo-corporate: #0d1b3d;
+
+    /* Derived application colors. */
+    --fo-bg: #071126;
+    --fo-surface: var(--fo-corporate);
+    --fo-surface-elevated: #102247;
+    --fo-panel: #13264f;
+    --fo-panel-soft: #172d59;
+    --fo-border: rgba(120, 148, 196, 0.20);
+    --fo-border-strong: rgba(120, 148, 196, 0.34);
+
+    --fo-text: #f8fafc;
+    --fo-muted: #9fb0ca;
+    --fo-subtle: #7184a4;
+
     --fo-success: #22c55e;
     --fo-warning: #f59e0b;
     --fo-danger: #ef4444;
+
+    --fo-purple-soft: rgba(123, 44, 255, 0.14);
+    --fo-blue-soft: rgba(41, 98, 255, 0.14);
+    --fo-white-soft: rgba(255, 255, 255, 0.07);
 }
 
 html {
@@ -57,22 +65,32 @@ body {
     display: none !important;
 }
 
+.fo-app-sidebar {
+    border-color: var(--fo-border);
+    background: color-mix(in srgb, var(--fo-corporate) 96%, transparent);
+}
+
+.fo-mobile-header {
+    border-color: var(--fo-border);
+    background: color-mix(in srgb, var(--fo-corporate) 92%, transparent);
+}
+
 .fo-card {
     border: 1px solid var(--fo-border);
     border-radius: 1rem;
-    background: linear-gradient(145deg, rgba(14, 30, 58, 0.96), rgba(8, 21, 43, 0.96));
+    background: linear-gradient(145deg, rgba(19, 38, 79, 0.97), rgba(13, 27, 61, 0.97));
     box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
 }
 
 .fo-panel {
     border: 1px solid var(--fo-border);
     border-radius: 1rem;
-    background: rgba(8, 21, 43, 0.82);
+    background: color-mix(in srgb, var(--fo-corporate) 84%, transparent);
     backdrop-filter: blur(18px);
 }
 
 .fo-eyebrow {
-    color: #aebbd0;
+    color: var(--fo-muted);
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -80,7 +98,7 @@ body {
 }
 
 .fo-gradient-text {
-    background: linear-gradient(90deg, #c7a6ff, #7b2cff 45%, #5b8def);
+    background: linear-gradient(90deg, var(--fo-purple), var(--fo-blue));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -92,14 +110,14 @@ body {
 }
 
 .fo-sidebar-item {
-    color: #94a3b8;
+    color: var(--fo-muted);
     transition: background-color 150ms ease, color 150ms ease;
 }
 
 .fo-sidebar-item:hover,
 .fo-sidebar-item:focus-visible {
     color: #ffffff !important;
-    background: rgba(255, 255, 255, 0.08) !important;
+    background: var(--fo-white-soft) !important;
 }
 
 .fo-sidebar-item:hover svg,
