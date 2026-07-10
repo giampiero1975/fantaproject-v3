@@ -14,10 +14,10 @@
         @livewireStyles
         @fluxAppearance
     </head>
-    <body class="min-h-screen bg-oracle-bg font-sans text-slate-100 antialiased selection:bg-oracle-600/40 selection:text-white">
+    <body class="min-h-screen bg-oracle-bg font-sans text-slate-100 antialiased selection:bg-oracle-purple/40 selection:text-white">
         <x-banner />
 
-        <flux:sidebar sticky collapsible="mobile" class="border-r border-white/10 bg-[#071225]/95 backdrop-blur-xl">
+        <flux:sidebar sticky collapsible="mobile" class="fo-app-sidebar border-r backdrop-blur-xl">
             <flux:sidebar.header class="border-b border-white/10 px-4 py-4">
                 <a href="{{ auth()->user()?->hasRole('admin') ? route('admin.dashboard') : route('dashboard') }}" class="flex items-center gap-3">
                     <x-fanta-oracle-logo variant="symbol" size="nav" />
@@ -91,7 +91,7 @@
             </div>
         </flux:sidebar>
 
-        <flux:header class="border-b border-white/10 bg-[#071225]/90 lg:hidden">
+        <flux:header class="fo-mobile-header border-b lg:hidden">
             <flux:sidebar.toggle icon="bars-2" inset="left" />
             <div class="ml-2 text-sm font-semibold text-white">Fanta Oracle</div>
             <flux:spacer />
