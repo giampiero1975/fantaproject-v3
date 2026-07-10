@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('passkeys')) {
+            return;
+        }
+
         Schema::create('passkeys', function (Blueprint $table) {
             $table->id();
             $table->foreignIdFor(Passkeys::userModel(), 'user_id')->constrained()->cascadeOnDelete();
