@@ -31,6 +31,7 @@
 
             <flux:sidebar.nav class="fo-scrollbar px-2 py-4">
                 <flux:sidebar.item
+                    class="fo-sidebar-item"
                     icon="home"
                     href="{{ auth()->user()?->hasRole('admin') ? route('admin.dashboard') : route('dashboard') }}"
                     :current="request()->routeIs('dashboard', 'admin.dashboard')"
@@ -39,25 +40,25 @@
                 </flux:sidebar.item>
 
                 @hasanyrole('admin|super_admin')
-                    <flux:sidebar.group heading="Administration" expandable expanded class="grid">
-                        <flux:sidebar.item icon="users" href="#">Utenti</flux:sidebar.item>
-                        <flux:sidebar.item icon="shield-check" href="#">Ruoli e permessi</flux:sidebar.item>
-                        <flux:sidebar.item icon="circle-stack" href="#">Database</flux:sidebar.item>
-                        <flux:sidebar.item icon="cog-6-tooth" href="#">Configurazione</flux:sidebar.item>
+                    <flux:sidebar.group heading="Administration" expandable class="grid">
+                        <flux:sidebar.item class="fo-sidebar-item" icon="users" href="#">Utenti</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="shield-check" href="#">Ruoli e permessi</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="circle-stack" href="#">Database</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="cog-6-tooth" href="#">Configurazione</flux:sidebar.item>
                     </flux:sidebar.group>
 
                     <flux:sidebar.group heading="Diagnostics" expandable class="grid">
-                        <flux:sidebar.item icon="heart" href="#">Stato sistema</flux:sidebar.item>
-                        <flux:sidebar.item icon="queue-list" href="#">Code e job</flux:sidebar.item>
-                        <flux:sidebar.item icon="document-text" href="#">Log</flux:sidebar.item>
-                        <flux:sidebar.item icon="signal" href="#">API</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="heart" href="#">Stato sistema</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="queue-list" href="#">Code e job</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="document-text" href="#">Log</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="signal" href="#">API</flux:sidebar.item>
                     </flux:sidebar.group>
 
                     <flux:sidebar.group heading="Operations" expandable class="grid">
-                        <flux:sidebar.item icon="arrow-down-tray" href="#">Importazioni</flux:sidebar.item>
-                        <flux:sidebar.item icon="chart-bar-square" href="#">Proiezioni</flux:sidebar.item>
-                        <flux:sidebar.item icon="sparkles" href="#">Oracle Engine</flux:sidebar.item>
-                        <flux:sidebar.item icon="cpu-chip" href="#">AI Engine</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="arrow-down-tray" href="#">Importazioni</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="chart-bar-square" href="#">Proiezioni</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="sparkles" href="#">Oracle Engine</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="cpu-chip" href="#">AI Engine</flux:sidebar.item>
                     </flux:sidebar.group>
                 @endhasanyrole
             </flux:sidebar.nav>
