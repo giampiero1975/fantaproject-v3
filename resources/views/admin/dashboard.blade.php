@@ -1,51 +1,72 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center justify-between gap-4">
-            <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B7CFF]">Amministrazione</p>
-                <h1 class="mt-1 text-2xl font-semibold tracking-tight text-white">
-                    Fanta Oracle Control Center
-                </h1>
-            </div>
-
-            <span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
-                Admin
-            </span>
-        </div>
+        <x-fo.page-header
+            eyebrow="Administration"
+            title="Fanta Oracle Control Center"
+            description="Vista operativa centralizzata per configurazione, diagnostica e processi del motore predittivo."
+        >
+            <x-slot name="actions">
+                <flux:badge color="green" size="sm">Sistema operativo</flux:badge>
+                <flux:button variant="primary" icon="bolt">Azione rapida</flux:button>
+            </x-slot>
+        </x-fo.page-header>
     </x-slot>
 
-    <div class="py-10">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <section class="overflow-hidden rounded-2xl border border-white/10 bg-[#08152B]/85 shadow-2xl shadow-black/20 backdrop-blur-xl">
-                <div class="border-b border-white/10 px-6 py-6 sm:px-8">
-                    <h2 class="text-xl font-semibold text-white">Benvenuto nell'Area Amministrativa</h2>
-                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                        Da qui inizieremo il porting delle funzionalità di amministrazione di Fanta Oracle.
-                    </p>
-                </div>
+    <div class="space-y-6">
+        <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <x-fo.stat label="Utenti attivi" value="1" hint="Ruoli gestiti con Spatie" icon="users" tone="purple" />
+            <x-fo.stat label="Job in coda" value="0" hint="Nessuna elaborazione pendente" icon="queue-list" tone="blue" />
+            <x-fo.stat label="Stato API" value="Online" hint="Endpoint applicativi disponibili" icon="signal" tone="green" />
+            <x-fo.stat label="Alert sistema" value="0" hint="Nessuna anomalia rilevata" icon="bell-alert" tone="amber" />
+        </section>
 
-                <div class="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2 sm:p-8 lg:grid-cols-3">
-                    <article class="group rounded-xl border border-white/10 bg-white/[0.035] p-5 transition hover:-translate-y-0.5 hover:border-[#7B2CFF]/50 hover:bg-white/[0.055]">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <h3 class="font-semibold text-white">Utenti</h3>
-                                <p class="mt-1 text-sm text-slate-400">Ruoli, permessi e gestione iscritti</p>
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+            <x-fo.panel
+                title="Aree operative"
+                description="Le sezioni principali del Control Center verranno sviluppate all'interno di questa struttura."
+            >
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    @foreach ([
+                        ['Administration', 'Utenti, ruoli, database e configurazione.', 'shield-check', 'oracle'],
+                        ['Diagnostics', 'Stato sistema, code, log e connettività API.', 'heart', 'blue'],
+                        ['Operations', 'Importazioni, proiezioni e processi del motore.', 'wrench-screwdriver', 'green'],
+                        ['AI Intelligence', 'Modelli locali, agenti e analisi assistita.', 'cpu-chip', 'amber'],
+                    ] as [$title, $description, $icon, $tone])
+                        <article class="group rounded-xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-0.5 hover:border-oracle-500/35 hover:bg-white/[0.045]">
+                            <div class="flex items-start gap-4">
+                                <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-oracle-600/10 text-oracle-300 ring-1 ring-oracle-500/20">
+                                    <flux:icon :name="$icon" class="size-5" />
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold text-white">{{ $title }}</h3>
+                                    <p class="mt-1 text-sm leading-6 text-slate-400">{{ $description }}</p>
+                                </div>
                             </div>
-                            <span class="rounded-lg bg-[#7B2CFF]/15 px-2.5 py-1 text-xs font-medium text-[#B99AFF]">Spatie</span>
-                        </div>
-                    </article>
-
-                    <article class="group rounded-xl border border-white/10 bg-white/[0.035] p-5 transition hover:-translate-y-0.5 hover:border-[#2962FF]/50 hover:bg-white/[0.055]">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <h3 class="font-semibold text-white">Impostazioni</h3>
-                                <p class="mt-1 text-sm text-slate-400">Configurazioni globali della piattaforma</p>
-                            </div>
-                            <span class="rounded-lg bg-[#2962FF]/15 px-2.5 py-1 text-xs font-medium text-[#8FB1FF]">Config</span>
-                        </div>
-                    </article>
+                        </article>
+                    @endforeach
                 </div>
-            </section>
-        </div>
+            </x-fo.panel>
+
+            <x-fo.panel title="Ambiente" description="Configurazione corrente dell'applicazione.">
+                <dl class="space-y-4 text-sm">
+                    <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+                        <dt class="text-slate-400">Framework</dt>
+                        <dd class="font-medium text-white">Laravel 12</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+                        <dt class="text-slate-400">Interfaccia</dt>
+                        <dd class="font-medium text-white">Livewire + Flux</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+                        <dt class="text-slate-400">Autorizzazioni</dt>
+                        <dd class="font-medium text-white">Spatie</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <dt class="text-slate-400">Database</dt>
+                        <dd class="font-medium text-white">PostgreSQL</dd>
+                    </div>
+                </dl>
+            </x-fo.panel>
+        </section>
     </div>
 </x-app-layout>
