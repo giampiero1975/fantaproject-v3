@@ -72,7 +72,7 @@
                             <div class="truncate text-sm font-medium text-white">{{ Auth::user()->name }}</div>
                             <div class="truncate text-xs text-slate-400">{{ Auth::user()->getRoleNames()->join(' · ') ?: 'utente' }}</div>
                         </div>
-                        <flux:icon.chevrons-up-down class="size-4 text-slate-500" />
+                        <flux:icon.chevron-up-down class="size-4 text-slate-500" />
                     </button>
 
                     <flux:menu class="min-w-56">
