@@ -38,7 +38,7 @@
                     Dashboard
                 </flux:sidebar.item>
 
-                @role('admin|super_admin')
+                @hasanyrole('admin|super_admin')
                     <flux:sidebar.group heading="Administration" expandable expanded class="grid">
                         <flux:sidebar.item icon="users" href="#">Utenti</flux:sidebar.item>
                         <flux:sidebar.item icon="shield-check" href="#">Ruoli e permessi</flux:sidebar.item>
@@ -59,7 +59,7 @@
                         <flux:sidebar.item icon="sparkles" href="#">Oracle Engine</flux:sidebar.item>
                         <flux:sidebar.item icon="cpu-chip" href="#">AI Engine</flux:sidebar.item>
                     </flux:sidebar.group>
-                @endrole
+                @endhasanyrole
             </flux:sidebar.nav>
 
             <flux:sidebar.spacer />
