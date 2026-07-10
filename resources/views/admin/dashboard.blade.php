@@ -1,27 +1,51 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Admin Dashboard - FantaOracle') }}
-        </h2>
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B7CFF]">Amministrazione</p>
+                <h1 class="mt-1 text-2xl font-semibold tracking-tight text-white">
+                    Fanta Oracle Control Center
+                </h1>
+            </div>
+
+            <span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
+                Admin
+            </span>
+        </div>
     </x-slot>
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white overflow-hidden shadow-xl sm:rounded-lg p-6">
-                <h3 class="text-2xl font-bold mb-4">Benvenuto nell'Area Amministrativa</h3>
-                <p class="text-gray-600">Da qui inizieremo il vero porting delle funzionalità FantaOracle.</p>
-                <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Placeholder per future sezioni admin -->
-                    <div class="p-4 border rounded shadow-sm bg-gray-50">
-                        <h4 class="font-bold">Utenti</h4>
-                        <p class="text-sm">Gestione iscritti</p>
-                    </div>
-                    <div class="p-4 border rounded shadow-sm bg-gray-50">
-                        <h4 class="font-bold">Impostazioni</h4>
-                        <p class="text-sm">Configurazioni globali</p>
-                    </div>
+    <div class="py-10">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <section class="overflow-hidden rounded-2xl border border-white/10 bg-[#08152B]/85 shadow-2xl shadow-black/20 backdrop-blur-xl">
+                <div class="border-b border-white/10 px-6 py-6 sm:px-8">
+                    <h2 class="text-xl font-semibold text-white">Benvenuto nell'Area Amministrativa</h2>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                        Da qui inizieremo il porting delle funzionalità di amministrazione di Fanta Oracle.
+                    </p>
                 </div>
-            </div>
+
+                <div class="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2 sm:p-8 lg:grid-cols-3">
+                    <article class="group rounded-xl border border-white/10 bg-white/[0.035] p-5 transition hover:-translate-y-0.5 hover:border-[#7B2CFF]/50 hover:bg-white/[0.055]">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 class="font-semibold text-white">Utenti</h3>
+                                <p class="mt-1 text-sm text-slate-400">Ruoli, permessi e gestione iscritti</p>
+                            </div>
+                            <span class="rounded-lg bg-[#7B2CFF]/15 px-2.5 py-1 text-xs font-medium text-[#B99AFF]">Spatie</span>
+                        </div>
+                    </article>
+
+                    <article class="group rounded-xl border border-white/10 bg-white/[0.035] p-5 transition hover:-translate-y-0.5 hover:border-[#2962FF]/50 hover:bg-white/[0.055]">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 class="font-semibold text-white">Impostazioni</h3>
+                                <p class="mt-1 text-sm text-slate-400">Configurazioni globali della piattaforma</p>
+                            </div>
+                            <span class="rounded-lg bg-[#2962FF]/15 px-2.5 py-1 text-xs font-medium text-[#8FB1FF]">Config</span>
+                        </div>
+                    </article>
+                </div>
+            </section>
         </div>
     </div>
 </x-app-layout>
