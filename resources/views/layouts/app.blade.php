@@ -1,47 +1,114 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Laravel') }}</title>
+        <title>{{ config('app.name', 'FantaOracle') }}</title>
 
-        <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
 
-        <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
-
-        <!-- Styles -->
         @livewireStyles
+        @fluxAppearance
     </head>
-    <body class="font-sans antialiased bg-[#050B18] text-white selection:bg-[#7B2CFF]/30 selection:text-white">
+    <body class="min-h-screen bg-oracle-bg font-sans text-slate-100 antialiased selection:bg-oracle-600/40 selection:text-white">
         <x-banner />
 
-        <div class="min-h-screen">
-            <div class="relative z-50">
-                @livewire('navigation-menu')
-            </div>
-
-            <!-- Page Heading -->
-            @if (isset($header))
-                <header class="relative z-10 border-b border-white/10 bg-[#08152B]/60 backdrop-blur-md">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
+        <flux:sidebar sticky collapsible="mobile" class="border-r border-white/10 bg-[#071225]/95 backdrop-blur-xl">
+            <flux:sidebar.header class="border-b border-white/10 px-4 py-4">
+                <a href="{{ auth()->user()?->hasRole('admin') ? route('admin.dashboard') : route('dashboard') }}" class="flex items-center gap-3">
+                    <x-fanta-oracle-logo variant="symbol" size="nav" />
+                    <div class="min-w-0">
+                        <div class="truncate text-sm font-semibold tracking-wide text-white">Fanta Oracle</div>
+                        <div class="truncate text-xs text-slate-400">Control Center</div>
                     </div>
+                </a>
+                <flux:sidebar.collapse class="lg:hidden" />
+            </flux:sidebar.header>
+
+            <flux:sidebar.nav class="fo-scrollbar px-2 py-4">
+                <flux:sidebar.item
+                    icon="home"
+                    href="{{ auth()->user()?->hasRole('admin') ? route('admin.dashboard') : route('dashboard') }}"
+                    :current="request()->routeIs('dashboard', 'admin.dashboard')"
+                >
+                    Dashboard
+                </flux:sidebar.item>
+
+                @role('admin|super_admin')
+                    <flux:sidebar.group heading="Administration" expandable expanded class="grid">
+                        <flux:sidebar.item icon="users" href="#">Utenti</flux:sidebar.item>
+                        <flux:sidebar.item icon="shield-check" href="#">Ruoli e permessi</flux:sidebar.item>
+                        <flux:sidebar.item icon="circle-stack" href="#">Database</flux:sidebar.item>
+                        <flux:sidebar.item icon="cog-6-tooth" href="#">Configurazione</flux:sidebar.item>
+                    </flux:sidebar.group>
+
+                    <flux:sidebar.group heading="Diagnostics" expandable class="grid">
+                        <flux:sidebar.item icon="heart" href="#">Stato sistema</flux:sidebar.item>
+                        <flux:sidebar.item icon="queue-list" href="#">Code e job</flux:sidebar.item>
+                        <flux:sidebar.item icon="document-text" href="#">Log</flux:sidebar.item>
+                        <flux:sidebar.item icon="signal" href="#">API</flux:sidebar.item>
+                    </flux:sidebar.group>
+
+                    <flux:sidebar.group heading="Operations" expandable class="grid">
+                        <flux:sidebar.item icon="arrow-down-tray" href="#">Importazioni</flux:sidebar.item>
+                        <flux:sidebar.item icon="chart-bar-square" href="#">Proiezioni</flux:sidebar.item>
+                        <flux:sidebar.item icon="sparkles" href="#">Oracle Engine</flux:sidebar.item>
+                        <flux:sidebar.item icon="cpu-chip" href="#">AI Engine</flux:sidebar.item>
+                    </flux:sidebar.group>
+                @endrole
+            </flux:sidebar.nav>
+
+            <flux:sidebar.spacer />
+
+            <div class="border-t border-white/10 p-3">
+                <flux:dropdown position="top" align="start" class="w-full">
+                    <button type="button" class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-white/5">
+                        <img class="size-9 rounded-full object-cover ring-1 ring-white/15" src="{{ Auth::user()->profile_photo_url }}" alt="{{ Auth::user()->name }}">
+                        <div class="min-w-0 flex-1">
+                            <div class="truncate text-sm font-medium text-white">{{ Auth::user()->name }}</div>
+                            <div class="truncate text-xs text-slate-400">{{ Auth::user()->getRoleNames()->join(' · ') ?: 'utente' }}</div>
+                        </div>
+                        <flux:icon.chevrons-up-down class="size-4 text-slate-500" />
+                    </button>
+
+                    <flux:menu class="min-w-56">
+                        <flux:menu.item icon="user-circle" href="{{ route('profile.show') }}">Profilo</flux:menu.item>
+                        <flux:menu.separator />
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button type="submit" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/10 hover:text-red-200">
+                                <flux:icon.arrow-right-start-on-rectangle class="size-4" />
+                                Esci
+                            </button>
+                        </form>
+                    </flux:menu>
+                </flux:dropdown>
+            </div>
+        </flux:sidebar>
+
+        <flux:header class="border-b border-white/10 bg-[#071225]/90 lg:hidden">
+            <flux:sidebar.toggle icon="bars-2" inset="left" />
+            <div class="ml-2 text-sm font-semibold text-white">Fanta Oracle</div>
+            <flux:spacer />
+            <img class="size-8 rounded-full object-cover ring-1 ring-white/15" src="{{ Auth::user()->profile_photo_url }}" alt="{{ Auth::user()->name }}">
+        </flux:header>
+
+        <flux:main class="min-h-screen bg-transparent px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+            @if (isset($header))
+                <header class="mb-7">
+                    {{ $header }}
                 </header>
             @endif
 
-            <!-- Page Content -->
-            <main class="relative z-0">
-                {{ $slot }}
-            </main>
-        </div>
+            {{ $slot }}
+        </flux:main>
 
         @stack('modals')
-
         @livewireScripts
+        @fluxScripts
     </body>
 </html>
