@@ -15,10 +15,10 @@ class IsAdmin
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()?->isAdmin()) {
-            return $next($request);
+        if (! $request->user()?->hasRole('admin')) {
+            abort(403, 'Accesso negato. Area riservata agli amministratori.');
         }
 
-        abort(403, 'Accesso negato. Area riservata agli amministratori.');
+        return $next($request);
     }
 }
