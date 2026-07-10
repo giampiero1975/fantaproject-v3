@@ -90,3 +90,19 @@ body {
     scrollbar-color: rgba(123, 44, 255, 0.55) transparent;
     scrollbar-width: thin;
 }
+
+.fo-sidebar-item {
+    color: #94a3b8;
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+.fo-sidebar-item:hover,
+.fo-sidebar-item:focus-visible {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.fo-sidebar-item:hover svg,
+.fo-sidebar-item:focus-visible svg {
+    color: #ffffff !important;
+}
