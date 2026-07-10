@@ -11,19 +11,29 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->text('two_factor_secret')
-                ->after('password')
-                ->nullable();
+        if (! Schema::hasColumn('users', 'two_factor_secret')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->text('two_factor_secret')
+                    ->after('password')
+                    ->nullable();
+            });
+        }
 
-            $table->text('two_factor_recovery_codes')
-                ->after('two_factor_secret')
-                ->nullable();
+        if (! Schema::hasColumn('users', 'two_factor_recovery_codes')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->text('two_factor_recovery_codes')
+                    ->after('two_factor_secret')
+                    ->nullable();
+            });
+        }
 
-            $table->timestamp('two_factor_confirmed_at')
-                ->after('two_factor_recovery_codes')
-                ->nullable();
-        });
+        if (! Schema::hasColumn('users', 'two_factor_confirmed_at')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->timestamp('two_factor_confirmed_at')
+                    ->after('two_factor_recovery_codes')
+                    ->nullable();
+            });
+        }
     }
 
     /**
@@ -31,12 +41,16 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn([
-                'two_factor_secret',
-                'two_factor_recovery_codes',
-                'two_factor_confirmed_at',
-            ]);
-        });
+        foreach ([
+            'two_factor_confirmed_at',
+            'two_factor_recovery_codes',
+            'two_factor_secret',
+        ] as $column) {
+            if (Schema::hasColumn('users', $column)) {
+                Schema::table('users', function (Blueprint $table) use ($column) {
+                    $table->dropColumn($column);
+                });
+            }
+        }
     }
 };
