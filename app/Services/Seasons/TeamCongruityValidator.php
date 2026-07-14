@@ -3,9 +3,14 @@
 namespace App\Services\Seasons;
 
 use App\Data\Seasons\CanonicalTeamData;
+use App\Services\Matching\NameSimilarityMatcher;
 
 final class TeamCongruityValidator
 {
+    public function __construct(
+        private readonly NameSimilarityMatcher $nameMatcher = new NameSimilarityMatcher(),
+    ) {}
+
     /**
      * @param list<CanonicalTeamData> $left
      * @param list<CanonicalTeamData> $right
@@ -13,35 +18,33 @@ final class TeamCongruityValidator
      */
     public function compare(array $left, array $right): array
     {
-        $leftByKey = $this->index($left);
-        $rightByKey = $this->index($right);
-
         $matched = [];
-        $missingLeft = [];
-        $missingRight = [];
         $warnings = [];
+        $usedRight = [];
+        $missingRight = [];
 
-        foreach ($leftByKey as $key => $team) {
-            if (! isset($rightByKey[$key])) {
-                $missingRight[] = $team->toArray();
+        foreach ($left as $leftTeam) {
+            $rightIndex = $this->findMatchIndex($leftTeam, $right, $usedRight);
+
+            if ($rightIndex === null) {
+                $missingRight[] = $leftTeam->toArray();
                 continue;
             }
 
-            $other = $rightByKey[$key];
-            $matched[] = [
-                'comparison_key' => $key,
-                'left' => $team->toArray(),
-                'right' => $other->toArray(),
-            ];
+            $usedRight[$rightIndex] = true;
+            $rightTeam = $right[$rightIndex];
 
-            if ($team->comparisonKey() !== $other->comparisonKey()) {
-                $warnings[] = sprintf('Name mismatch for code %s: %s vs %s.', $team->code ?: $other->code ?: $key, $team->name, $other->name);
-            }
+            $matched[] = [
+                'comparison_key' => $this->comparisonLabel($leftTeam, $rightTeam),
+                'left' => $leftTeam->toArray(),
+                'right' => $rightTeam->toArray(),
+            ];
         }
 
-        foreach ($rightByKey as $key => $team) {
-            if (! isset($leftByKey[$key])) {
-                $missingLeft[] = $team->toArray();
+        $missingLeft = [];
+        foreach ($right as $index => $rightTeam) {
+            if (! isset($usedRight[$index])) {
+                $missingLeft[] = $rightTeam->toArray();
             }
         }
 
@@ -60,23 +63,54 @@ final class TeamCongruityValidator
         ];
     }
 
-    /** @param list<CanonicalTeamData> $teams @return array<string,CanonicalTeamData> */
-    private function index(array $teams): array
+    /** @param list<CanonicalTeamData> $right @param array<int,bool> $usedRight */
+    private function findMatchIndex(CanonicalTeamData $leftTeam, array $right, array $usedRight): ?int
     {
-        $indexed = [];
+        if ($leftTeam->code) {
+            foreach ($right as $index => $rightTeam) {
+                if (isset($usedRight[$index]) || ! $rightTeam->code) {
+                    continue;
+                }
 
-        foreach ($teams as $team) {
-            $key = $team->code
-                ? 'code:'.mb_strtoupper(trim($team->code))
-                : 'name:'.$team->comparisonKey();
+                if (strcasecmp(trim($leftTeam->code), trim($rightTeam->code)) === 0) {
+                    return $index;
+                }
+            }
+        }
 
-            if ($key === 'name:') {
+        $leftOperationalName = $leftTeam->shortName ?: $leftTeam->name;
+
+        foreach ($right as $index => $rightTeam) {
+            if (isset($usedRight[$index])) {
                 continue;
             }
 
-            $indexed[$key] = $team;
+            $rightOperationalName = $rightTeam->shortName ?: $rightTeam->name;
+
+            if ($this->nameMatcher->matches($leftOperationalName, $rightOperationalName)) {
+                return $index;
+            }
         }
 
-        return $indexed;
+        foreach ($right as $index => $rightTeam) {
+            if (isset($usedRight[$index])) {
+                continue;
+            }
+
+            if ($this->nameMatcher->matches($leftTeam->name, $rightTeam->name)) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function comparisonLabel(CanonicalTeamData $left, CanonicalTeamData $right): string
+    {
+        if ($left->code && $right->code && strcasecmp($left->code, $right->code) === 0) {
+            return 'code:'.mb_strtoupper(trim($left->code));
+        }
+
+        return 'name:'.$this->nameMatcher->normalize($left->shortName ?: $left->name);
     }
 }
