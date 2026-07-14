@@ -21,6 +21,14 @@ final class FootballDataClient
 
     public function currentSeasonYear(string $competitionCode): int
     {
+        $info = $this->currentSeasonInfo($competitionCode);
+
+        return $info['year'];
+    }
+
+    /** @return array{year:int,start_date:?string,end_date:?string} */
+    public function currentSeasonInfo(string $competitionCode): array
+    {
         $payload = $this->competition($competitionCode);
         $startDate = (string) data_get($payload, 'currentSeason.startDate', '');
 
@@ -28,7 +36,22 @@ final class FootballDataClient
             throw new RuntimeException('football-data.org current season is missing or invalid.');
         }
 
-        return (int) $matches[1];
+        return [
+            'year' => (int) $matches[1],
+            'start_date' => $startDate !== '' ? $startDate : null,
+            'end_date' => ($end = (string) data_get($payload, 'currentSeason.endDate', '')) !== '' ? $end : null,
+        ];
+    }
+
+    /** @return array{start_date:?string,end_date:?string} */
+    public function seasonDates(string $competitionCode, int $seasonYear): array
+    {
+        $payload = $this->teams($competitionCode, $seasonYear);
+
+        return [
+            'start_date' => ($start = (string) data_get($payload, 'season.startDate', '')) !== '' ? $start : null,
+            'end_date' => ($end = (string) data_get($payload, 'season.endDate', '')) !== '' ? $end : null,
+        ];
     }
 
     public function teams(string $competitionCode, int $seasonYear): array
