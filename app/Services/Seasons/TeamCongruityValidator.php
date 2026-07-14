@@ -34,8 +34,8 @@ final class TeamCongruityValidator
                 'right' => $other->toArray(),
             ];
 
-            if ($team->code && $other->code && strcasecmp($team->code, $other->code) !== 0) {
-                $warnings[] = sprintf('Code mismatch for %s: %s vs %s.', $team->name, $team->code, $other->code);
+            if ($team->comparisonKey() !== $other->comparisonKey()) {
+                $warnings[] = sprintf('Name mismatch for code %s: %s vs %s.', $team->code ?: $other->code ?: $key, $team->name, $other->name);
             }
         }
 
@@ -66,8 +66,11 @@ final class TeamCongruityValidator
         $indexed = [];
 
         foreach ($teams as $team) {
-            $key = $team->comparisonKey();
-            if ($key === '') {
+            $key = $team->code
+                ? 'code:'.mb_strtoupper(trim($team->code))
+                : 'name:'.$team->comparisonKey();
+
+            if ($key === 'name:') {
                 continue;
             }
 
