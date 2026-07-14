@@ -8,6 +8,29 @@ use RuntimeException;
 
 final class FootballDataClient
 {
+    public function competition(string $competitionCode): array
+    {
+        $payload = $this->request()->get("/competitions/{$competitionCode}")->throw()->json();
+
+        if (! is_array($payload)) {
+            throw new RuntimeException('football-data.org returned an invalid competition payload.');
+        }
+
+        return $payload;
+    }
+
+    public function currentSeasonYear(string $competitionCode): int
+    {
+        $payload = $this->competition($competitionCode);
+        $startDate = (string) data_get($payload, 'currentSeason.startDate', '');
+
+        if (! preg_match('/^(\d{4})-/', $startDate, $matches)) {
+            throw new RuntimeException('football-data.org current season is missing or invalid.');
+        }
+
+        return (int) $matches[1];
+    }
+
     public function teams(string $competitionCode, int $seasonYear): array
     {
         $payload = $this->request()
