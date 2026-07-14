@@ -18,14 +18,30 @@ final class ApiFootballClient
         return $this->response('/leagues', ['id' => $leagueId]);
     }
 
+    public function currentSeasonYear(int $leagueId): int
+    {
+        $items = $this->league($leagueId);
+        $seasons = data_get($items, '0.seasons', []);
+
+        if (! is_array($seasons)) {
+            throw new RuntimeException('API-Football seasons payload is missing or invalid.');
+        }
+
+        foreach ($seasons as $season) {
+            if (($season['current'] ?? false) === true && isset($season['year'])) {
+                return (int) $season['year'];
+            }
+        }
+
+        throw new RuntimeException('API-Football current season is not available.');
+    }
+
     public function teams(int $leagueId, int $seasonYear): array
     {
-        $payload = $this->payload('/teams', [
+        return $this->payload('/teams', [
             'league' => $leagueId,
             'season' => $seasonYear,
         ]);
-
-        return $payload;
     }
 
     private function response(string $endpoint, array $query = []): array
