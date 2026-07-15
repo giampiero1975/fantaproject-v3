@@ -2,12 +2,17 @@
 
 namespace App\Services\FootballData;
 
+use App\Services\Providers\ProviderConfigurationRepository;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 final class FootballDataClient
 {
+    public function __construct(
+        private readonly ProviderConfigurationRepository $configurations,
+    ) {}
+
     public function competition(string $competitionCode): array
     {
         $payload = $this->request()->get("/competitions/{$competitionCode}")->throw()->json();
@@ -21,9 +26,7 @@ final class FootballDataClient
 
     public function currentSeasonYear(string $competitionCode): int
     {
-        $info = $this->currentSeasonInfo($competitionCode);
-
-        return $info['year'];
+        return $this->currentSeasonInfo($competitionCode)['year'];
     }
 
     /** @return array{year:int,start_date:?string,end_date:?string} */
@@ -70,20 +73,21 @@ final class FootballDataClient
 
     private function request(): PendingRequest
     {
-        $token = (string) config('football_data.token');
-        if ($token === '') {
-            throw new RuntimeException('FOOTBALL_DATA_TOKEN is not configured.');
+        $config = $this->configurations->get('football_data');
+        if (! $config->enabled) {
+            throw new RuntimeException('Provider football_data is disabled.');
         }
 
-        return Http::baseUrl((string) config('football_data.base_url'))
+        $token = $config->credential('token');
+        if ($token === '') {
+            throw new RuntimeException('Credential token for football_data is not configured.');
+        }
+
+        return Http::baseUrl($config->baseUrl)
             ->acceptJson()
             ->withHeaders(['X-Auth-Token' => $token])
-            ->connectTimeout((int) config('football_data.connect_timeout', 10))
-            ->timeout((int) config('football_data.timeout', 30))
-            ->retry(
-                (int) config('football_data.retry_times', 3),
-                (int) config('football_data.retry_sleep_ms', 500),
-                throw: false,
-            );
+            ->connectTimeout($config->connectTimeout)
+            ->timeout($config->timeout)
+            ->retry($config->retryTimes, $config->retrySleepMs, throw: false);
     }
 }
