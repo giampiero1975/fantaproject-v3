@@ -47,9 +47,18 @@ final class ProviderManagementController extends Controller
 
                 $mappings = DB::table('league_provider_mappings as lpm')
                     ->join('leagues as l', 'l.id', '=', 'lpm.league_id')
+                    ->leftJoin('countries as c', 'c.id', '=', 'l.country_id')
                     ->where('lpm.data_provider_id', $provider->id)
+                    ->orderBy('c.name')
                     ->orderBy('l.name')
-                    ->get(['l.id as league_id', 'l.name as league_name', 'lpm.external_id', 'lpm.external_name']);
+                    ->get([
+                        'l.id as league_id',
+                        'l.name as league_name',
+                        'l.country_id',
+                        'c.name as country_name',
+                        'lpm.external_id',
+                        'lpm.external_name',
+                    ]);
 
                 $provider->credentials = $credentials;
                 $provider->mappings = $mappings;
