@@ -6,6 +6,12 @@
         />
     </x-slot>
 
+    @php
+        $selectedCompetition = old('competition', $lastParameters['competition'] ?? 'SA');
+        $selectedApiLeagueId = old('api_league_id', $lastParameters['api_league_id'] ?? 135);
+        $selectedHistory = old('history', $lastParameters['history'] ?? $historyFallback);
+    @endphp
+
     <div class="space-y-6">
         @if (session('status'))
             <div class="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm text-emerald-100">
@@ -47,7 +53,7 @@
                             <input
                                 type="text"
                                 name="competition"
-                                value="{{ old('competition', 'SA') }}"
+                                value="{{ $selectedCompetition }}"
                                 class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400"
                                 required
                             >
@@ -58,7 +64,7 @@
                             <input
                                 type="number"
                                 name="api_league_id"
-                                value="{{ old('api_league_id', 135) }}"
+                                value="{{ $selectedApiLeagueId }}"
                                 min="1"
                                 class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400"
                                 required
@@ -70,7 +76,7 @@
                             <input
                                 type="number"
                                 name="history"
-                                value="{{ old('history', $historyFallback) }}"
+                                value="{{ $selectedHistory }}"
                                 min="0"
                                 max="20"
                                 class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400"
@@ -128,9 +134,9 @@
                         @if ($lastMode !== 'apply' && (int) $lastExitCode === 0)
                             <form method="POST" action="{{ route('admin.seasons.apply') }}" class="flex flex-wrap items-end gap-3">
                                 @csrf
-                                <input type="hidden" name="competition" value="{{ old('competition', 'SA') }}">
-                                <input type="hidden" name="api_league_id" value="{{ old('api_league_id', 135) }}">
-                                <input type="hidden" name="history" value="{{ old('history', $historyFallback) }}">
+                                <input type="hidden" name="competition" value="{{ $lastParameters['competition'] ?? $selectedCompetition }}">
+                                <input type="hidden" name="api_league_id" value="{{ $lastParameters['api_league_id'] ?? $selectedApiLeagueId }}">
+                                <input type="hidden" name="history" value="{{ $lastParameters['history'] ?? $selectedHistory }}">
 
                                 <label class="space-y-2">
                                     <span class="block text-xs font-medium text-amber-200">Digita APPLICA</span>
