@@ -11,6 +11,14 @@ class DataProvidersSeeder extends Seeder
     {
         DB::table('data_providers')->upsert([
             [
+                'code' => 'football_data',
+                'name' => 'football-data.org',
+                'base_url' => 'https://api.football-data.org/v4',
+                'active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
                 'code' => 'api_football',
                 'name' => 'API-Football',
                 'base_url' => 'https://v3.football.api-sports.io',
