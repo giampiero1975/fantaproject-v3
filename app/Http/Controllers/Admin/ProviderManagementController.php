@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 final class ProviderManagementController extends Controller
 {
@@ -31,7 +32,18 @@ final class ProviderManagementController extends Controller
                     ->where('data_provider_id', $provider->id)
                     ->where('environment', $environment)
                     ->orderBy('credential_key')
-                    ->get(['credential_key', 'is_active', 'rotated_at']);
+                    ->get(['id', 'credential_key', 'encrypted_value', 'is_active', 'rotated_at'])
+                    ->map(function ($credential) {
+                        try {
+                            $credential->current_value = Crypt::decryptString($credential->encrypted_value);
+                        } catch (Throwable) {
+                            $credential->current_value = null;
+                        }
+
+                        unset($credential->encrypted_value);
+
+                        return $credential;
+                    });
 
                 $mappings = DB::table('league_provider_mappings as lpm')
                     ->join('leagues as l', 'l.id', '=', 'lpm.league_id')
@@ -127,7 +139,6 @@ final class ProviderManagementController extends Controller
             DB::table('data_provider_runtime_configs')->updateOrInsert(
                 ['data_provider_id' => $provider],
                 [
-                    'is_enabled' => true,
                     'priority' => $data['priority'],
                     'role' => $data['role'],
                     'base_url' => $data['base_url'],
