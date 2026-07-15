@@ -2,12 +2,17 @@
 
 namespace App\Services\ApiFootball;
 
+use App\Services\Providers\ProviderConfigurationRepository;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 final class ApiFootballClient
 {
+    public function __construct(
+        private readonly ProviderConfigurationRepository $configurations,
+    ) {}
+
     public function leagues(): array
     {
         return $this->response('/leagues');
@@ -107,20 +112,21 @@ final class ApiFootballClient
 
     private function request(): PendingRequest
     {
-        $key = (string) config('api_football.key');
-        if ($key === '') {
-            throw new RuntimeException('API_FOOTBALL_KEY is not configured.');
+        $config = $this->configurations->get('api_football');
+        if (! $config->enabled) {
+            throw new RuntimeException('Provider api_football is disabled.');
         }
 
-        return Http::baseUrl((string) config('api_football.base_url'))
+        $key = $config->credential('api_key');
+        if ($key === '') {
+            throw new RuntimeException('Credential api_key for api_football is not configured.');
+        }
+
+        return Http::baseUrl($config->baseUrl)
             ->acceptJson()
             ->withHeaders(['x-apisports-key' => $key])
-            ->connectTimeout((int) config('api_football.connect_timeout', 10))
-            ->timeout((int) config('api_football.timeout', 30))
-            ->retry(
-                (int) config('api_football.retry_times', 3),
-                (int) config('api_football.retry_sleep_ms', 500),
-                throw: false,
-            );
+            ->connectTimeout($config->connectTimeout)
+            ->timeout($config->timeout)
+            ->retry($config->retryTimes, $config->retrySleepMs, throw: false);
     }
 }
