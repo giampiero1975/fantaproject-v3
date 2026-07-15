@@ -124,23 +124,32 @@
 
                     <div class="mt-5 grid gap-5 xl:grid-cols-2">
                         <section class="rounded-xl bg-white p-4 ring-1 ring-slate-300">
-                            <h3 class="text-sm font-semibold text-slate-900">Credenziale</h3>
-                            <div class="mt-3 space-y-2 text-sm">
+                            <h3 class="text-sm font-semibold text-slate-900">Credenziale in uso</h3>
+                            <p class="mt-1 text-xs text-slate-500">Il nome tecnico è definito dall’adapter e non deve essere scelto manualmente.</p>
+
+                            <div class="mt-3 space-y-4 text-sm">
                                 @forelse ($provider->credentials as $credential)
-                                    <div class="rounded-lg bg-slate-100 px-3 py-2">
-                                        <div class="flex items-center justify-between gap-3"><span class="font-mono text-slate-700">{{ $credential->credential_key }}</span><span class="text-xs text-emerald-700">Configurata</span></div>
-                                        <div class="mt-1 text-xs text-slate-500">Ultima rotazione: {{ $credential->rotated_at ?? 'mai registrata' }}</div>
+                                    <div class="rounded-lg bg-slate-100 p-3">
+                                        <div class="flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <div class="text-xs font-medium uppercase tracking-wide text-slate-500">{{ $credential->credential_key }}</div>
+                                                <div class="mt-1 break-all font-mono text-slate-900">{{ $credential->current_value ?? 'Impossibile decifrare la credenziale' }}</div>
+                                                <div class="mt-1 text-xs text-slate-500">Ultima rotazione: {{ $credential->rotated_at ?? 'mai registrata' }}</div>
+                                            </div>
+                                            <span class="text-xs font-medium text-emerald-700">Configurata</span>
+                                        </div>
+
+                                        <form method="POST" action="{{ route('admin.providers.credentials.rotate', $provider->id) }}" class="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                                            @csrf
+                                            <input type="hidden" name="credential_key" value="{{ $credential->credential_key }}">
+                                            <input type="text" name="credential_value" placeholder="Nuovo valore" class="rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300" required>
+                                            <button class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-400">Sostituisci</button>
+                                        </form>
                                     </div>
                                 @empty
                                     <p class="text-slate-500">Nessuna credenziale configurata per questo ambiente.</p>
                                 @endforelse
                             </div>
-                            <form method="POST" action="{{ route('admin.providers.credentials.rotate', $provider->id) }}" class="mt-4 grid gap-3 md:grid-cols-3">
-                                @csrf
-                                <input name="credential_key" placeholder="token / api_key" class="rounded-lg bg-slate-100 px-3 py-2 text-slate-900 ring-1 ring-slate-300" required>
-                                <input type="password" name="credential_value" placeholder="Nuovo valore" class="rounded-lg bg-slate-100 px-3 py-2 text-slate-900 ring-1 ring-slate-300" required>
-                                <button class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-400">Ruota credenziale</button>
-                            </form>
                         </section>
 
                         <section class="rounded-xl bg-white p-4 ring-1 ring-slate-300" data-mapping-section>
@@ -178,8 +187,8 @@
                     <select name="role" class="rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300"><option value="primary">Primary</option><option value="fallback">Fallback</option><option value="audit">Audit</option><option value="statistics">Statistics</option></select>
                     <input type="number" name="priority" value="100" min="1" class="rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300" required>
                     <input name="plan" placeholder="Piano contrattuale" class="rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
-                    <input name="credential_key" placeholder="credential key" class="rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
-                    <input type="password" name="credential_value" placeholder="credential value" class="rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                    <input name="credential_key" placeholder="credential key richiesta dall’adapter" class="rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                    <input type="text" name="credential_value" placeholder="credential value" class="rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
                     <div class="md:col-span-4"><button class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Aggiungi provider</button></div>
                 </form>
             </x-fo-accordion>
