@@ -153,23 +153,51 @@
                         </section>
 
                         <section class="rounded-xl bg-white p-4 ring-1 ring-slate-300" data-mapping-section>
+                            @php
+                                $mappingCountries = $provider->mappings
+                                    ->filter(fn ($mapping) => $mapping->country_id !== null)
+                                    ->unique('country_id')
+                                    ->sortBy('country_name');
+                            @endphp
+
                             <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div><h3 class="text-sm font-semibold text-slate-900">Mapping competizioni</h3><p class="mt-1 text-xs text-slate-500">Collegamenti tra lega interna e identificativo del provider.</p></div>
-                                <select data-mapping-select class="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800 ring-1 ring-slate-300">
-                                    <option value="">Tutte le competizioni</option>
-                                    @foreach ($provider->mappings as $mapping)<option value="{{ $mapping->league_id }}">{{ $mapping->league_name }}</option>@endforeach
-                                </select>
+                                <div>
+                                    <h3 class="text-sm font-semibold text-slate-900">Mapping competizioni</h3>
+                                    <p class="mt-1 text-xs text-slate-500">Collegamenti tra lega interna e identificativo del provider.</p>
+                                </div>
+
+                                <details class="relative">
+                                    <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-slate-100 text-slate-700 ring-1 ring-slate-300 hover:bg-slate-200 [&::-webkit-details-marker]:hidden" title="Filtra per nazione" aria-label="Filtra mapping per nazione">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="size-5" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4.5h18l-7 8v5.25l-4 1.75v-7L3 4.5Z" />
+                                        </svg>
+                                    </summary>
+
+                                    <div class="absolute right-0 z-20 mt-2 w-64 rounded-xl bg-white p-3 shadow-xl ring-1 ring-slate-300">
+                                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Nazione</label>
+                                        <select data-country-filter class="mt-2 w-full rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
+                                            <option value="">Tutte le nazioni</option>
+                                            @foreach ($mappingCountries as $country)
+                                                <option value="{{ $country->country_id }}">{{ $country->country_name ?? 'Nazione non indicata' }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </details>
                             </div>
+
                             <div class="mt-3 space-y-2">
                                 @forelse($provider->mappings as $mapping)
-                                    <div data-mapping-row data-league-id="{{ $mapping->league_id }}" class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 py-3">
-                                        <div><div class="font-medium text-slate-900">{{ $mapping->league_name }}</div><div class="text-xs text-slate-500">{{ $mapping->external_name }}</div></div>
+                                    <div data-mapping-row data-country-id="{{ $mapping->country_id }}" class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 py-3">
+                                        <div>
+                                            <div class="font-medium text-slate-900">{{ $mapping->league_name }}</div>
+                                            <div class="text-xs text-slate-500">{{ $mapping->country_name ?? 'Nazione non indicata' }} · {{ $mapping->external_name }}</div>
+                                        </div>
                                         <div class="rounded-md bg-slate-800 px-2.5 py-1 font-mono text-xs text-white">{{ $mapping->external_id }}</div>
                                     </div>
                                 @empty
                                     <p class="py-3 text-slate-500">Nessun mapping registrato.</p>
                                 @endforelse
-                                <p data-mapping-empty class="hidden py-4 text-sm text-slate-500">Nessun mapping corrisponde al filtro.</p>
+                                <p data-mapping-empty class="hidden py-4 text-sm text-slate-500">Nessun mapping per la nazione selezionata.</p>
                             </div>
                         </section>
                     </div>
@@ -197,16 +225,19 @@
 
     <script>
         document.querySelectorAll('[data-mapping-section]').forEach((section) => {
-            const select = section.querySelector('[data-mapping-select]');
+            const select = section.querySelector('[data-country-filter]');
             const rows = Array.from(section.querySelectorAll('[data-mapping-row]'));
             const empty = section.querySelector('[data-mapping-empty]');
+
             select?.addEventListener('change', () => {
                 let visible = 0;
+
                 rows.forEach((row) => {
-                    const show = select.value === '' || row.dataset.leagueId === select.value;
+                    const show = select.value === '' || row.dataset.countryId === select.value;
                     row.classList.toggle('hidden', !show);
                     if (show) visible++;
                 });
+
                 empty?.classList.toggle('hidden', visible !== 0 || rows.length === 0);
             });
         });
