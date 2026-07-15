@@ -6,12 +6,11 @@
 
 <details
     {{ $attributes->class([
-        'group overflow-hidden rounded-2xl bg-slate-800/70 transition',
-        'open:bg-slate-800',
+        'group overflow-hidden rounded-2xl bg-slate-900/90 shadow-lg shadow-black/10 transition',
     ]) }}
     @if ($open) open @endif
 >
-    <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-white/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 [&::-webkit-details-marker]:hidden">
+    <summary class="flex cursor-pointer list-none items-center justify-between gap-4 bg-slate-900/95 px-5 py-4 transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 [&::-webkit-details-marker]:hidden">
         <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-3">
                 <h2 class="truncate text-base font-semibold text-white">{{ $title }}</h2>
@@ -36,7 +35,7 @@
         </svg>
     </summary>
 
-    <div class="bg-slate-900/55 px-5 py-5">
+    <div class="bg-slate-700/75 px-5 py-5">
         {{ $slot }}
     </div>
 </details>
