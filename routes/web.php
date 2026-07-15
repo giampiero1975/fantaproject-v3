@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\ProviderManagementController;
 use App\Http\Controllers\Admin\SeasonManagementController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,13 @@ Route::middleware([
     'admin',
 ])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    Route::get('/providers', [ProviderManagementController::class, 'index'])->name('providers.index');
+    Route::post('/providers', [ProviderManagementController::class, 'store'])->name('providers.store');
+    Route::put('/providers/{provider}', [ProviderManagementController::class, 'update'])->name('providers.update');
+    Route::patch('/providers/{provider}/toggle', [ProviderManagementController::class, 'toggle'])->name('providers.toggle');
+    Route::post('/providers/{provider}/credentials', [ProviderManagementController::class, 'rotateCredential'])->name('providers.credentials.rotate');
+
     Route::get('/manage-season', [SeasonManagementController::class, 'index'])->name('seasons.index');
     Route::post('/manage-season/analyze', [SeasonManagementController::class, 'analyze'])->name('seasons.analyze');
     Route::post('/manage-season/apply', [SeasonManagementController::class, 'apply'])->name('seasons.apply');
