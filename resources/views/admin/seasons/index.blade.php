@@ -1,16 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-fo-page-header
-            title="Gestione Stagioni"
-            subtitle="Step 1 · discovery provider-aware, timeline storica e sincronizzazione controllata"
-        />
+        <div>
+            <h1 class="text-2xl font-semibold text-white">Gestione Stagioni</h1>
+            <p class="mt-1 text-sm text-slate-400">Step 1 · discovery provider-aware, timeline storica e sincronizzazione controllata</p>
+        </div>
     </x-slot>
-
-    @php
-        $selectedCompetition = old('competition', $lastParameters['competition'] ?? 'SA');
-        $selectedApiLeagueId = old('api_league_id', $lastParameters['api_league_id'] ?? 135);
-        $selectedHistory = old('history', $lastParameters['history'] ?? $historyFallback);
-    @endphp
 
     <div class="space-y-6">
         @if (session('status'))
@@ -36,7 +30,7 @@
         @endif
 
         <div class="grid gap-6 xl:grid-cols-3">
-            <x-fo-card class="xl:col-span-2">
+            <div class="rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-xl xl:col-span-2">
                 <div class="space-y-6">
                     <div>
                         <h2 class="text-lg font-semibold text-white">Analizza timeline</h2>
@@ -50,55 +44,33 @@
 
                         <label class="space-y-2">
                             <span class="text-sm font-medium text-slate-300">Codice Football-Data</span>
-                            <input
-                                type="text"
-                                name="competition"
-                                value="{{ $selectedCompetition }}"
-                                class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400"
-                                required
-                            >
+                            <input type="text" name="competition" value="{{ old('competition', 'SA') }}" class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400" required>
                         </label>
 
                         <label class="space-y-2">
                             <span class="text-sm font-medium text-slate-300">ID API-Football</span>
-                            <input
-                                type="number"
-                                name="api_league_id"
-                                value="{{ $selectedApiLeagueId }}"
-                                min="1"
-                                class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400"
-                                required
-                            >
+                            <input type="number" name="api_league_id" value="{{ old('api_league_id', 135) }}" min="1" class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400" required>
                         </label>
 
                         <label class="space-y-2">
                             <span class="text-sm font-medium text-slate-300">History fallback</span>
-                            <input
-                                type="number"
-                                name="history"
-                                value="{{ $selectedHistory }}"
-                                min="0"
-                                max="20"
-                                class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400"
-                            >
-                            <span class="block text-xs text-slate-500">Default `.env`: {{ $historyFallback }}</span>
+                            <input type="number" name="history" value="{{ old('history', $historyFallback) }}" min="0" max="20" class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white focus:border-violet-400 focus:ring-violet-400">
+                            <span class="block text-xs text-slate-500">Default .env: {{ $historyFallback }}</span>
                         </label>
 
                         <div class="md:col-span-3 flex flex-wrap items-center gap-3">
-                            <button type="submit" class="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400">
-                                Analizza senza scrivere
-                            </button>
+                            <button type="submit" class="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400">Analizza senza scrivere</button>
                             <span class="text-xs text-slate-500">Dry-run obbligatorio prima dell'applicazione.</span>
                         </div>
                     </form>
                 </div>
-            </x-fo-card>
+            </div>
 
-            <x-fo-card>
+            <div class="rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-xl">
                 <div class="space-y-4">
                     <div>
                         <h2 class="text-lg font-semibold text-white">Stato Step 1</h2>
-                        <p class="mt-1 text-sm text-slate-400">Backend e UI condividono lo stesso motore `season:sync`.</p>
+                        <p class="mt-1 text-sm text-slate-400">Backend e UI condividono lo stesso motore season:sync.</p>
                     </div>
 
                     <dl class="space-y-3 text-sm">
@@ -117,48 +89,38 @@
                         @endforeach
                     </dl>
                 </div>
-            </x-fo-card>
+            </div>
         </div>
 
         @if ($lastReport)
-            <x-fo-card>
+            <div class="rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-xl">
                 <div class="space-y-5">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
                             <h2 class="text-lg font-semibold text-white">Ultimo report</h2>
-                            <p class="mt-1 text-sm text-slate-400">
-                                Modalità: {{ $lastMode === 'apply' ? 'APPLY' : 'DRY-RUN' }} · Exit code: {{ $lastExitCode }}
-                            </p>
+                            <p class="mt-1 text-sm text-slate-400">Modalità: {{ $lastMode === 'apply' ? 'APPLY' : 'DRY-RUN' }} · Exit code: {{ $lastExitCode }}</p>
                         </div>
 
                         @if ($lastMode !== 'apply' && (int) $lastExitCode === 0)
                             <form method="POST" action="{{ route('admin.seasons.apply') }}" class="flex flex-wrap items-end gap-3">
                                 @csrf
-                                <input type="hidden" name="competition" value="{{ $lastParameters['competition'] ?? $selectedCompetition }}">
-                                <input type="hidden" name="api_league_id" value="{{ $lastParameters['api_league_id'] ?? $selectedApiLeagueId }}">
-                                <input type="hidden" name="history" value="{{ $lastParameters['history'] ?? $selectedHistory }}">
+                                <input type="hidden" name="competition" value="{{ session('season_sync_params.competition', 'SA') }}">
+                                <input type="hidden" name="api_league_id" value="{{ session('season_sync_params.api_league_id', 135) }}">
+                                <input type="hidden" name="history" value="{{ session('season_sync_params.history', $historyFallback) }}">
 
                                 <label class="space-y-2">
                                     <span class="block text-xs font-medium text-amber-200">Digita APPLICA</span>
-                                    <input
-                                        type="text"
-                                        name="confirmation"
-                                        autocomplete="off"
-                                        class="w-36 rounded-xl border border-amber-400/20 bg-black/20 px-3 py-2 text-white focus:border-amber-300 focus:ring-amber-300"
-                                        required
-                                    >
+                                    <input type="text" name="confirmation" autocomplete="off" class="w-36 rounded-xl border border-amber-400/20 bg-black/20 px-3 py-2 text-white focus:border-amber-300 focus:ring-amber-300" required>
                                 </label>
 
-                                <button type="submit" class="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-400/20 focus:outline-none focus:ring-2 focus:ring-amber-300">
-                                    Applica sincronizzazione
-                                </button>
+                                <button type="submit" class="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-400/20 focus:outline-none focus:ring-2 focus:ring-amber-300">Applica sincronizzazione</button>
                             </form>
                         @endif
                     </div>
 
                     <pre class="max-h-[34rem] overflow-auto rounded-xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-slate-300">{{ $lastReport }}</pre>
                 </div>
-            </x-fo-card>
+            </div>
         @endif
     </div>
 </x-app-layout>
