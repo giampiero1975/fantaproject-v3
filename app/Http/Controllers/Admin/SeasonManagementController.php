@@ -17,6 +17,7 @@ final class SeasonManagementController extends Controller
             'lastReport' => session('season_sync_report'),
             'lastMode' => session('season_sync_mode'),
             'lastExitCode' => session('season_sync_exit_code'),
+            'lastParameters' => session('season_sync_parameters', []),
         ]);
     }
 
@@ -55,14 +56,20 @@ final class SeasonManagementController extends Controller
     /** @param array{competition:string,api_league_id:int,history:?int,confirmation?:string} $validated */
     private function runSync(array $validated, bool $apply): RedirectResponse
     {
+        $parameters = [
+            'competition' => strtoupper($validated['competition']),
+            'api_league_id' => (int) $validated['api_league_id'],
+            'history' => $validated['history'] !== null ? (int) $validated['history'] : null,
+        ];
+
         $arguments = [
-            '--competition' => strtoupper($validated['competition']),
-            '--api-league-id' => (int) $validated['api_league_id'],
+            '--competition' => $parameters['competition'],
+            '--api-league-id' => $parameters['api_league_id'],
             '--json' => true,
         ];
 
-        if ($validated['history'] !== null) {
-            $arguments['--history'] = (int) $validated['history'];
+        if ($parameters['history'] !== null) {
+            $arguments['--history'] = $parameters['history'];
         }
 
         if ($apply) {
@@ -77,6 +84,7 @@ final class SeasonManagementController extends Controller
             ->with('season_sync_report', $output)
             ->with('season_sync_mode', $apply ? 'apply' : 'dry_run')
             ->with('season_sync_exit_code', $exitCode)
+            ->with('season_sync_parameters', $parameters)
             ->with(
                 $exitCode === 0 ? 'status' : 'error',
                 $exitCode === 0
