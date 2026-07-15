@@ -40,10 +40,18 @@
                 </flux:sidebar.item>
 
                 @hasanyrole('admin|super_admin')
-                    <flux:sidebar.group class="fo-sidebar-group grid" heading="Administration" expandable :expanded="request()->routeIs('admin.seasons.*')">
+                    <flux:sidebar.group class="fo-sidebar-group grid" heading="Administration" expandable :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*')">
                         <flux:sidebar.item class="fo-sidebar-item" icon="users" href="#">Utenti</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="shield-check" href="#">Ruoli e permessi</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="circle-stack" href="#">Database</flux:sidebar.item>
+                        <flux:sidebar.item
+                            class="fo-sidebar-item"
+                            icon="server-stack"
+                            href="{{ route('admin.providers.index') }}"
+                            :current="request()->routeIs('admin.providers.*')"
+                        >
+                            Provider Management
+                        </flux:sidebar.item>
                         <flux:sidebar.item
                             class="fo-sidebar-item"
                             icon="calendar-days"
