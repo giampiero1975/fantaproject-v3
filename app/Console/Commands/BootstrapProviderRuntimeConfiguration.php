@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Database\Seeders\DataProvidersSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,11 @@ final class BootstrapProviderRuntimeConfiguration extends Command
 
     public function handle(): int
     {
+        $this->callSilent('db:seed', [
+            '--class' => DataProvidersSeeder::class,
+            '--force' => true,
+        ]);
+
         $definitions = [
             'football_data' => [
                 'base_url' => (string) config('football_data.base_url'),
@@ -45,7 +51,7 @@ final class BootstrapProviderRuntimeConfiguration extends Command
             foreach ($definitions as $code => $definition) {
                 $provider = DB::table('data_providers')->where('code', $code)->first();
                 if (! $provider) {
-                    throw new RuntimeException("Provider {$code} does not exist in data_providers.");
+                    throw new RuntimeException("Provider {$code} could not be created in data_providers.");
                 }
 
                 $runtimeExists = DB::table('data_provider_runtime_configs')
@@ -102,8 +108,8 @@ final class BootstrapProviderRuntimeConfiguration extends Command
             }
         });
 
-        $this->components->info("Provider runtime configuration imported for environment {$environment}.");
-        $this->line('You may remove provider-specific values from .env only after running the verification command successfully.');
+        $this->components->info("Provider catalog and runtime configuration imported for environment {$environment}.");
+        $this->line('You may remove provider-specific values from .env only after running the verification commands successfully.');
 
         return self::SUCCESS;
     }
