@@ -5,11 +5,11 @@ namespace App\Console\Commands;
 use App\Support\Providers\ProviderStatusTable;
 use Illuminate\Console\Command;
 
-final class ListProviderAdaptersCommand extends Command
+final class ListProviderStatusCommand extends Command
 {
-    protected $signature = 'providers:adapters';
+    protected $signature = 'providers:status';
 
-    protected $description = 'Alias of providers:status. Lists provider DB registration and adapter availability.';
+    protected $description = 'List registered providers, installed adapters and runtime readiness.';
 
     public function handle(ProviderStatusTable $statusTable): int
     {

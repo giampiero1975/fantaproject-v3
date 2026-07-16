@@ -181,6 +181,35 @@ Le date `start_date` e `end_date` vengono conservate anche per validare la coere
 
 ## 8. Comandi CLI
 
+### Stato provider e adapter
+
+```bash
+php artisan providers:status
+```
+
+Il comando mostra l'unione tra provider registrati nel database e adapter PHP installati in `config/data_provider_adapters.php`.
+
+```text
+Code          Registered   Adapter installed   Runtime    State
+football_data YES          YES                 ACTIVE     READY
+api_football  YES          YES                 ACTIVE     READY
+thesportsdb   YES          NO                  DISABLED   ADAPTER REQUIRED
+sportmonks    YES          NO                  DISABLED   ADAPTER REQUIRED
+```
+
+Stati principali:
+
+- `READY`: provider registrato, adapter installato, runtime attivo;
+- `ADAPTER REQUIRED`: provider registrato dalla UI ma adapter PHP non ancora installato;
+- `AVAILABLE TO REGISTER`: adapter PHP disponibile ma provider non ancora registrato nel DB;
+- `DISABLED`: provider registrato con adapter installato, ma runtime spento.
+
+Il comando storico resta disponibile come alias compatibile:
+
+```bash
+php artisan providers:adapters
+```
+
 ### Audit dei provider
 
 ```bash
@@ -227,6 +256,14 @@ URL:
 ```
 
 La UI espone due azioni.
+
+La pagina `Administration -> Provider Management` distingue esplicitamente:
+
+- `Registrato`: il provider esiste in `data_providers`;
+- `Adapter richiesto`: il provider e' configurato nel DB, ma manca l'adapter applicativo;
+- `Attivo`: adapter installato e runtime abilitato.
+
+I provider DB-only non sono attivabili dalla UI: il bottone resta disabilitato finche' non viene installato l'adapter PHP.
 
 ### Analizza senza scrivere
 
@@ -289,6 +326,7 @@ Il comando opera in transazione e prima disattiva l'eventuale precedente `is_cur
 
 ```bash
 php artisan test tests/Unit/Seasons tests/Unit/Providers
+php artisan providers:status
 php artisan route:list --name=admin.seasons
 php artisan season:sync --competition=SA --api-league-id=135 --json
 ```

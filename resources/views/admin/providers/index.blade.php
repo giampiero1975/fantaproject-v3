@@ -21,11 +21,12 @@
         @endif
 
         <section class="rounded-2xl bg-slate-800/65 p-5 shadow-lg shadow-black/10">
-            <div class="grid gap-5 text-sm md:grid-cols-2 xl:grid-cols-4">
-                <div><h2 class="font-semibold text-white">Cosa devi fare</h2><p class="mt-2 leading-6 text-slate-300">Normalmente nulla: verifica solo che i provider necessari siano attivi.</p></div>
+            <div class="grid gap-5 text-sm md:grid-cols-2 xl:grid-cols-5">
+                <div><h2 class="font-semibold text-white">Registrato</h2><p class="mt-2 leading-6 text-slate-300">Il provider esiste nel DB con configurazione runtime, credenziali e metadata.</p></div>
+                <div><h2 class="font-semibold text-white">Adapter richiesto</h2><p class="mt-2 leading-6 text-slate-300">Il provider è salvato, ma manca ancora il codice PHP che normalizza le risposte.</p></div>
+                <div><h2 class="font-semibold text-white">Attivo</h2><p class="mt-2 leading-6 text-slate-300">Il provider ha adapter installato ed è abilitato per le procedure runtime.</p></div>
                 <div><h2 class="font-semibold text-white">Se disattivi</h2><p class="mt-2 leading-6 text-slate-300">Il provider non viene più usato nelle nuove chiamate. Storico, mapping e credenziali restano salvati.</p></div>
                 <div><h2 class="font-semibold text-white">Priorità</h2><p class="mt-2 leading-6 text-slate-300"><strong class="text-emerald-300">10</strong> viene provato prima di <strong class="text-amber-300">20</strong>. Il numero non indica qualità.</p></div>
-                <div><h2 class="font-semibold text-white">Quando intervenire</h2><p class="mt-2 leading-6 text-slate-300">Cambio piano, endpoint, credenziale, ruolo oppure provider non funzionante.</p></div>
             </div>
         </section>
 
@@ -34,11 +35,17 @@
                 @php
                     $knownPlans = ['Free', 'Basic', 'Pro', 'Enterprise'];
                     $hasCustomPlan = filled($provider->plan) && ! in_array($provider->plan, $knownPlans, true);
+                    $requiresAdapter = ! $provider->adapter_supported;
+                    $runtimeReady = $provider->adapter_supported && $provider->is_enabled;
                 @endphp
 
                 <x-fo-accordion :title="$provider->name" :subtitle="$provider->code" bodyClass="bg-slate-100 text-slate-900">
                     <x-slot:badge>
-                        <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $provider->is_enabled ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-700 text-slate-300' }}">{{ $provider->is_enabled ? 'Attivo' : 'Disattivato' }}</span>
+                        @if ($requiresAdapter)
+                            <span class="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-semibold text-amber-200">Adapter richiesto</span>
+                        @else
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $runtimeReady ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-700 text-slate-300' }}">{{ $runtimeReady ? 'Attivo' : 'Disattivato' }}</span>
+                        @endif
                     </x-slot:badge>
 
                     <x-slot:meta>
@@ -47,12 +54,19 @@
                         <span>Priorità: <strong class="text-slate-200">{{ $provider->priority ?? '—' }}</strong></span>
                         <span>Piano: <strong class="text-slate-200">{{ $provider->plan ?: 'non indicato' }}</strong></span>
                         <span>Mapping: <strong class="text-slate-200">{{ $provider->mappings->count() }}</strong></span>
+                        <span>Adapter: <strong class="text-slate-200">{{ $provider->adapter_supported ? 'installato' : 'richiesto' }}</strong></span>
                     </x-slot:meta>
 
                     <div class="grid gap-4 xl:grid-cols-3">
-                        <div class="rounded-xl bg-emerald-50 p-4 text-emerald-950 ring-1 ring-emerald-200">
-                            <h3 class="font-semibold">Stato corrente: {{ $provider->is_enabled ? 'ATTIVO' : 'DISATTIVATO' }}</h3>
-                            <p class="mt-2 text-sm leading-5">{{ $provider->is_enabled ? 'Il sistema può utilizzare questo provider nelle procedure compatibili.' : 'Il provider è escluso dalle nuove chiamate runtime.' }}</p>
+                        <div class="rounded-xl {{ $requiresAdapter ? 'bg-amber-50 text-amber-950 ring-amber-200' : 'bg-emerald-50 text-emerald-950 ring-emerald-200' }} p-4 ring-1">
+                            <h3 class="font-semibold">Stato corrente: {{ $requiresAdapter ? 'ADAPTER RICHIESTO' : ($runtimeReady ? 'ATTIVO' : 'DISATTIVATO') }}</h3>
+                            <p class="mt-2 text-sm leading-5">
+                                @if ($requiresAdapter)
+                                    Il provider è registrato nel DB ma non può essere usato finché non viene installato il relativo adapter PHP.
+                                @else
+                                    {{ $runtimeReady ? 'Il sistema può utilizzare questo provider nelle procedure compatibili.' : 'Il provider è escluso dalle nuove chiamate runtime.' }}
+                                @endif
+                            </p>
                             <p class="mt-3 text-xs font-medium">Mapping disponibili: {{ $provider->mappings->count() }}</p>
                         </div>
 
@@ -66,7 +80,7 @@
                             </ul>
                             <form method="POST" action="{{ route('admin.providers.toggle', $provider->id) }}" class="mt-3">
                                 @csrf @method('PATCH')
-                                <button class="rounded-lg px-3 py-2 text-sm font-semibold {{ $provider->is_enabled ? 'bg-amber-200 text-amber-950 hover:bg-amber-300' : 'bg-emerald-200 text-emerald-950 hover:bg-emerald-300' }}">{{ $provider->is_enabled ? 'Disattiva provider' : 'Riattiva provider' }}</button>
+                                <button @disabled($requiresAdapter) class="rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 {{ $runtimeReady ? 'bg-amber-200 text-amber-950 hover:bg-amber-300' : 'bg-emerald-200 text-emerald-950 hover:bg-emerald-300' }}">{{ $requiresAdapter ? 'Installa adapter per attivare' : ($runtimeReady ? 'Disattiva provider' : 'Riattiva provider') }}</button>
                             </form>
                         </div>
 

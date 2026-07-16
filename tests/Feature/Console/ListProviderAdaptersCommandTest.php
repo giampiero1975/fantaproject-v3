@@ -10,7 +10,7 @@ final class ListProviderAdaptersCommandTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_lists_registered_provider_waiting_for_an_adapter(): void
+    public function test_provider_status_lists_ready_adapter_required_and_available_to_register_states(): void
     {
         config()->set('data_provider_adapters', [
             'football_data' => [
@@ -18,7 +18,19 @@ final class ListProviderAdaptersCommandTest extends TestCase
                 'credential_key' => 'token',
                 'capabilities' => ['competitions', 'seasons', 'teams'],
             ],
+            'api_football' => [
+                'name' => 'API-Football',
+                'credential_key' => 'api_key',
+                'capabilities' => ['competitions', 'seasons', 'teams'],
+            ],
         ]);
+
+        $this->insertProvider(
+            code: 'football_data',
+            name: 'football-data.org',
+            active: true,
+            runtimeEnabled: true
+        );
 
         $providerId = DB::table('data_providers')->insertGetId([
             'code' => 'thesportsdb',
@@ -51,14 +63,73 @@ final class ListProviderAdaptersCommandTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $this->artisan('providers:adapters')
+        $this->artisan('providers:status')
             ->expectsTable(
-                ['Code', 'Provider', 'Credential', 'Capabilities', 'Registered', 'State'],
+                ['Code', 'Provider', 'Registered', 'Adapter installed', 'Runtime', 'State'],
                 [
-                    ['football_data', 'football-data.org', 'token', 'competitions, seasons, teams', 'NO', 'AVAILABLE'],
-                    ['thesportsdb', 'TheSportsDB', '—', 'competitions, seasons, teams', 'YES', 'ADAPTER_REQUIRED'],
+                    ['api_football', 'API-Football', 'NO', 'YES', '-', 'AVAILABLE TO REGISTER'],
+                    ['football_data', 'football-data.org', 'YES', 'YES', 'ACTIVE', 'READY'],
+                    ['thesportsdb', 'TheSportsDB', 'YES', 'NO', 'DISABLED', 'ADAPTER REQUIRED'],
                 ]
             )
             ->assertSuccessful();
+    }
+
+    public function test_provider_adapters_command_remains_a_compatible_alias(): void
+    {
+        config()->set('data_provider_adapters', [
+            'api_football' => [
+                'name' => 'API-Football',
+                'credential_key' => 'api_key',
+                'capabilities' => ['competitions', 'seasons', 'teams'],
+            ],
+        ]);
+
+        $this->artisan('providers:adapters')
+            ->expectsTable(
+                ['Code', 'Provider', 'Registered', 'Adapter installed', 'Runtime', 'State'],
+                [
+                    ['api_football', 'API-Football', 'NO', 'YES', '-', 'AVAILABLE TO REGISTER'],
+                ]
+            )
+            ->assertSuccessful();
+    }
+
+    private function insertProvider(
+        string $code,
+        string $name,
+        bool $active,
+        bool $runtimeEnabled,
+    ): int {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => $code,
+            'name' => $name,
+            'base_url' => 'https://api.example.test/'.$code,
+            'active' => $active,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => $runtimeEnabled,
+            'priority' => 30,
+            'role' => 'fallback',
+            'base_url' => 'https://api.example.test/'.$code,
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'plan' => 'Free',
+            'metadata' => json_encode([
+                'capabilities' => ['competitions', 'seasons', 'teams'],
+                'adapter_supported' => true,
+                'onboarding_state' => 'ready',
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $providerId;
     }
 }
