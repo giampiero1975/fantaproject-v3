@@ -7,7 +7,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Throwable;
@@ -218,8 +217,17 @@ final class ProviderManagementController extends Controller
 
     public function rotateCredential(Request $request, int $provider): RedirectResponse
     {
+        $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($catalogProvider, 404);
+
+        $adapter = config("data_provider_adapters.{$catalogProvider->code}");
+        if (! is_array($adapter) || empty($adapter['credential_key'])) {
+            return back()->withErrors([
+                'provider' => 'Impossibile ruotare la credenziale: adapter o nome credenziale non configurato.',
+            ]);
+        }
+
         $data = $request->validate([
-            'credential_key' => ['required', 'string', 'max:100', 'regex:/^[a-z0-9_]+$/'],
             'credential_value' => ['required', 'string', 'max:5000'],
         ]);
 
@@ -227,7 +235,7 @@ final class ProviderManagementController extends Controller
             [
                 'data_provider_id' => $provider,
                 'environment' => app()->environment(),
-                'credential_key' => Str::lower($data['credential_key']),
+                'credential_key' => $adapter['credential_key'],
             ],
             [
                 'encrypted_value' => Crypt::encryptString($data['credential_value']),
