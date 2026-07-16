@@ -34,12 +34,27 @@ Il comando esegue la collection Bruno in `docs/provider-lab`.
 ```text
 docs/provider-lab/
   bruno.json
+  football_data/
+    competitions/
+      mapping.competitions.json
+      sample-response.json
+  api_football/
+    competitions/
+      mapping.competitions.json
+      sample-response.json
   thesportsdb/
     competitions/
       search-all-leagues-italy.bru
       sample-response.json
       mapping.competitions.json
+  sportmonks/
+    competitions/
+      mapping.competitions.json
 ```
+
+Ogni provider parametrizzato deve avere almeno la mappatura `competitions`.
+
+Le request Bruno eseguibili vengono aggiunte solo quando endpoint, auth e input di test sono verificati. Una mappatura con `validation_status = pending_documentation` non deve essere considerata pronta.
 
 ## Stati da riportare in Laravel
 

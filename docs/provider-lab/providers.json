@@ -1,0 +1,28 @@
+{
+  "providers": [
+    {
+      "code": "football_data",
+      "name": "football-data.org",
+      "status": "READY",
+      "competitions_mapping": "football_data/competitions/mapping.competitions.json"
+    },
+    {
+      "code": "api_football",
+      "name": "API-Football",
+      "status": "READY",
+      "competitions_mapping": "api_football/competitions/mapping.competitions.json"
+    },
+    {
+      "code": "thesportsdb",
+      "name": "TheSportsDB",
+      "status": "ADAPTER REQUIRED",
+      "competitions_mapping": "thesportsdb/competitions/mapping.competitions.json"
+    },
+    {
+      "code": "sportmonks",
+      "name": "SportMonks",
+      "status": "ADAPTER REQUIRED",
+      "competitions_mapping": "sportmonks/competitions/mapping.competitions.json"
+    }
+  ]
+}

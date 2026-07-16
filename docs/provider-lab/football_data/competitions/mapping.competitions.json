@@ -1,0 +1,45 @@
+{
+  "provider": "football_data",
+  "capability": "competitions",
+  "scope": "competition_code",
+  "adapter_type": "native_php",
+  "request": {
+    "method": "GET",
+    "base_url_source": "data_provider_configurations.base_url",
+    "endpoint": "competitions/{competition_code}",
+    "query": {},
+    "auth": {
+      "type": "header",
+      "header": "X-Auth-Token",
+      "credential_key": "token"
+    }
+  },
+  "test_inputs": {
+    "competition_code": "SA"
+  },
+  "response": {
+    "items_path": null,
+    "item_shape": "single_object"
+  },
+  "field_mappings": {
+    "external_id": "code",
+    "provider_numeric_id": "id",
+    "name": "name",
+    "country": "area.name",
+    "country_code": "area.code",
+    "type": "type",
+    "logo_url": "emblem"
+  },
+  "required_internal_fields": [
+    "external_id",
+    "name",
+    "country"
+  ],
+  "validation_status": "mapped_from_native_adapter",
+  "runtime_status": {
+    "reachable": true,
+    "valid_payload": true,
+    "mapping_complete": true,
+    "ready": true
+  }
+}

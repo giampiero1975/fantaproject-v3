@@ -29,10 +29,11 @@
     "name",
     "country"
   ],
+  "validation_status": "lab_validated",
   "runtime_status": {
-    "reachable": false,
-    "valid_payload": false,
+    "reachable": true,
+    "valid_payload": true,
     "mapping_complete": true,
-    "ready": false
+    "ready": true
   }
 }

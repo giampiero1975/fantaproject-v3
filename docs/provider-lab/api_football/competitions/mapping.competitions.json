@@ -1,0 +1,45 @@
+{
+  "provider": "api_football",
+  "capability": "competitions",
+  "scope": "league_id",
+  "adapter_type": "native_php",
+  "request": {
+    "method": "GET",
+    "base_url_source": "data_provider_configurations.base_url",
+    "endpoint": "leagues",
+    "query": {
+      "id": "{league_id}"
+    },
+    "auth": {
+      "type": "header",
+      "header": "x-apisports-key",
+      "credential_key": "api_key"
+    }
+  },
+  "test_inputs": {
+    "league_id": 135
+  },
+  "response": {
+    "items_path": "response"
+  },
+  "field_mappings": {
+    "external_id": "league.id",
+    "name": "league.name",
+    "country": "country.name",
+    "country_code": "country.code",
+    "type": "league.type",
+    "logo_url": "league.logo"
+  },
+  "required_internal_fields": [
+    "external_id",
+    "name",
+    "country"
+  ],
+  "validation_status": "mapped_from_native_adapter",
+  "runtime_status": {
+    "reachable": true,
+    "valid_payload": true,
+    "mapping_complete": true,
+    "ready": true
+  }
+}
