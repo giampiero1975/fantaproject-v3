@@ -365,14 +365,23 @@ final class ProviderManagementController extends Controller
 
                 return $endpoint;
             });
+        $currentCapability = (string) session('http_adapter_test_input.capability', 'competitions');
+        $currentEndpoint = $savedEndpoints->firstWhere('capability', $currentCapability);
+        $providerPreset = $this->httpAdapterPreset($providerRow->code);
+        $formInput = $this->httpAdapterFormInput(
+            session('http_adapter_test_input', []),
+            $currentEndpoint,
+            $providerPreset,
+        );
 
         return view('admin.providers.http-adapter', [
             'provider' => $providerRow,
             'metadata' => $metadata,
             'capabilities' => ['competitions', 'seasons', 'teams'],
             'savedEndpoints' => $savedEndpoints,
+            'internalFields' => $this->internalFieldsFor('competitions'),
+            'formInput' => $formInput,
             'testResult' => session('http_adapter_test_result'),
-            'testInput' => session('http_adapter_test_input', []),
         ]);
     }
 
@@ -516,6 +525,150 @@ final class ProviderManagementController extends Controller
             'teams' => ['external_id', 'name'],
             default => ['external_id', 'name'],
         };
+    }
+
+    /**
+     * @return array<string, array{required: bool, description: string}>
+     */
+    private function internalFieldsFor(string $capability): array
+    {
+        return match ($capability) {
+            'competitions' => [
+                'external_id' => [
+                    'required' => true,
+                    'description' => 'ID stabile del provider. Per Football-Data e\' il codice competizione, es. SA.',
+                ],
+                'name' => [
+                    'required' => true,
+                    'description' => 'Nome leggibile della competizione.',
+                ],
+                'country' => [
+                    'required' => true,
+                    'description' => 'Nazione o area della competizione.',
+                ],
+                'provider_numeric_id' => [
+                    'required' => false,
+                    'description' => 'ID numerico del provider, utile per audit e chiamate future.',
+                ],
+                'country_code' => [
+                    'required' => false,
+                    'description' => 'Codice paese/area restituito dal provider.',
+                ],
+                'type' => [
+                    'required' => false,
+                    'description' => 'Tipo competizione, es. LEAGUE o CUP.',
+                ],
+                'logo_url' => [
+                    'required' => false,
+                    'description' => 'URL logo/emblema della competizione.',
+                ],
+            ],
+            default => [],
+        };
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function httpAdapterPreset(string $providerCode): array
+    {
+        return match ($providerCode) {
+            'football_data' => [
+                'capability' => 'competitions',
+                'method' => 'GET',
+                'endpoint' => 'competitions',
+                'query_params' => '',
+                'body_template' => '',
+                'items_path' => 'competitions',
+                'field_mappings' => implode("\n", [
+                    'external_id=code',
+                    'provider_numeric_id=id',
+                    'name=name',
+                    'country=area.name',
+                    'country_code=area.code',
+                    'type=type',
+                    'logo_url=emblem',
+                ]),
+            ],
+            'api_football' => [
+                'capability' => 'competitions',
+                'method' => 'GET',
+                'endpoint' => 'leagues',
+                'query_params' => 'id=135',
+                'body_template' => '',
+                'items_path' => 'response',
+                'field_mappings' => implode("\n", [
+                    'external_id=league.id',
+                    'name=league.name',
+                    'country=country.name',
+                    'country_code=country.code',
+                    'type=league.type',
+                    'logo_url=league.logo',
+                ]),
+            ],
+            'thesportsdb' => [
+                'capability' => 'competitions',
+                'method' => 'GET',
+                'endpoint' => 'search_all_leagues.php',
+                'query_params' => 'c=Italy',
+                'body_template' => '',
+                'items_path' => 'countries',
+                'field_mappings' => implode("\n", [
+                    'external_id=idLeague',
+                    'name=strLeague',
+                    'country=strCountry',
+                    'type=strSport',
+                    'logo_url=strBadge',
+                ]),
+            ],
+            default => [
+                'capability' => 'competitions',
+                'method' => 'GET',
+                'endpoint' => '',
+                'query_params' => '',
+                'body_template' => '',
+                'items_path' => '',
+                'field_mappings' => implode("\n", [
+                    'external_id=',
+                    'name=',
+                    'country=',
+                ]),
+            ],
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $sessionInput
+     * @param  array<string, string>  $preset
+     * @return array<string, string>
+     */
+    private function httpAdapterFormInput(array $sessionInput, ?object $savedEndpoint, array $preset): array
+    {
+        $savedInput = [];
+
+        if ($savedEndpoint !== null) {
+            $savedInput = [
+                'capability' => (string) $savedEndpoint->capability,
+                'method' => (string) $savedEndpoint->method,
+                'endpoint' => (string) $savedEndpoint->endpoint,
+                'query_params' => $this->keyValueText($savedEndpoint->query_params_decoded),
+                'body_template' => '',
+                'items_path' => (string) ($savedEndpoint->items_path ?? ''),
+                'field_mappings' => $this->keyValueText($savedEndpoint->field_mappings_decoded),
+            ];
+        }
+
+        return array_merge($preset, $savedInput, array_filter($sessionInput, fn (mixed $value): bool => $value !== null));
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    private function keyValueText(array $values): string
+    {
+        return collect($values)
+            ->map(fn (mixed $value, string $key): string => "{$key}={$value}")
+            ->implode("\n");
     }
 
     /**

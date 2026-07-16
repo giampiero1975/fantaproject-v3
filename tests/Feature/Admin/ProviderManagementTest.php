@@ -301,6 +301,58 @@ class ProviderManagementTest extends TestCase
         ], json_decode($mapping->field_mappings, true));
     }
 
+    public function test_http_adapter_page_prefills_saved_mapping_instead_of_placeholders(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'method' => 'GET',
+            'endpoint' => 'competitions',
+            'query_params' => null,
+            'body_template' => null,
+            'items_path' => 'competitions',
+            'is_enabled' => true,
+            'validation_status' => 'saved_not_tested',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'external_id' => 'code',
+                'provider_numeric_id' => 'id',
+                'name' => 'name',
+                'country' => 'area.name',
+                'country_code' => 'area.code',
+                'type' => 'type',
+                'logo_url' => 'emblem',
+            ]),
+            'required_fields' => json_encode(['external_id', 'name', 'country']),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertOk()
+            ->assertSee('value="competitions"', false)
+            ->assertSee('external_id=code')
+            ->assertSee('country=area.name')
+            ->assertDontSee('external_id=idLeague')
+            ->assertDontSee('c=Italy');
+    }
+
     public function test_provider_without_adapter_cannot_be_activated(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

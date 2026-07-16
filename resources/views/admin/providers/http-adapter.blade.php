@@ -23,7 +23,7 @@
                     <span class="text-xs font-medium text-slate-700">Capability</span>
                     <select name="capability" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
                         @foreach ($capabilities as $capability)
-                            <option value="{{ $capability }}" @selected(($testInput['capability'] ?? 'competitions') === $capability)>{{ $capability }}</option>
+                            <option value="{{ $capability }}" @selected(($formInput['capability'] ?? 'competitions') === $capability)>{{ $capability }}</option>
                         @endforeach
                     </select>
                 </label>
@@ -31,8 +31,8 @@
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Metodo</span>
                     <select name="method" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
-                        <option value="GET" @selected(($testInput['method'] ?? 'GET') === 'GET')>GET</option>
-                        <option value="POST" @selected(($testInput['method'] ?? 'GET') === 'POST')>POST</option>
+                        <option value="GET" @selected(($formInput['method'] ?? 'GET') === 'GET')>GET</option>
+                        <option value="POST" @selected(($formInput['method'] ?? 'GET') === 'POST')>POST</option>
                     </select>
                 </label>
 
@@ -43,31 +43,31 @@
 
                 <label class="space-y-1 md:col-span-2">
                     <span class="text-xs font-medium text-slate-700">Endpoint</span>
-                    <input name="endpoint" value="{{ $testInput['endpoint'] ?? 'search_all_leagues.php' }}" placeholder="search_all_leagues.php" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300" required>
+                    <input name="endpoint" value="{{ $formInput['endpoint'] ?? '' }}" placeholder="competitions" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300" required>
                     <span class="block text-[11px] text-slate-500">Inserisci un endpoint relativo alla base URL, come in Postman.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Query params</span>
-                    <textarea name="query_params" rows="6" placeholder="c=Italy&#10;l=Italian Serie A" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $testInput['query_params'] ?? "c=Italy" }}</textarea>
+                    <textarea name="query_params" rows="6" placeholder="id=135" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['query_params'] ?? '' }}</textarea>
                     <span class="block text-[11px] text-slate-500">Formato: una coppia key=value per riga.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Body JSON</span>
-                    <textarea name="body_template" rows="6" placeholder='{"country":"Italy"}' class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $testInput['body_template'] ?? '' }}</textarea>
+                    <textarea name="body_template" rows="6" placeholder='{"country":"Italy"}' class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['body_template'] ?? '' }}</textarea>
                     <span class="block text-[11px] text-slate-500">Usato solo per POST. Per la prima fase usa GET.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Items path</span>
-                    <input name="items_path" value="{{ $testInput['items_path'] ?? 'leagues' }}" placeholder="leagues" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">
+                    <input name="items_path" value="{{ $formInput['items_path'] ?? '' }}" placeholder="competitions" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">
                     <span class="block text-[11px] text-slate-500">Percorso dove si trova la lista nel JSON. Esempio: teams, leagues, data.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Field mapping</span>
-                    <textarea name="field_mappings" rows="6" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $testInput['field_mappings'] ?? "external_id=idLeague\nname=strLeague\ncountry=strCountry" }}</textarea>
+                    <textarea name="field_mappings" rows="6" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['field_mappings'] ?? '' }}</textarea>
                     <span class="block text-[11px] text-slate-500">Formato: campo_interno=path_payload.</span>
                 </label>
 
@@ -90,6 +90,21 @@
                     <div><dt class="text-slate-400">Base URL</dt><dd class="break-all font-mono">{{ $provider->base_url }}</dd></div>
                     <div><dt class="text-slate-400">Stato</dt><dd>{{ $provider->is_enabled ? 'Runtime attivo' : 'Runtime disattivato' }}</dd></div>
                 </dl>
+            </section>
+
+            <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
+                <h2 class="font-semibold text-white">Campi interni · competitions</h2>
+                <div class="mt-3 space-y-3">
+                    @foreach ($internalFields as $field => $info)
+                        <div class="rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">
+                            <div class="flex items-center justify-between gap-3">
+                                <code class="text-xs text-white">{{ $field }}</code>
+                                <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $info['required'] ? 'bg-red-400/15 text-red-200' : 'bg-slate-600 text-slate-200' }}">{{ $info['required'] ? 'richiesto' : 'opzionale' }}</span>
+                            </div>
+                            <p class="mt-2 text-xs leading-5 text-slate-400">{{ $info['description'] }}</p>
+                        </div>
+                    @endforeach
+                </div>
             </section>
 
             <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
