@@ -85,9 +85,9 @@
                         </div>
 
                         <div class="rounded-xl bg-blue-50 p-4 text-blue-950 ring-1 ring-blue-200">
-                            <h3 class="font-semibold">Piano contrattuale</h3>
-                            <p class="mt-2 text-sm leading-5">È solo un riferimento amministrativo del piano acquistato.</p>
-                            <p class="mt-2 text-sm leading-5">Non influenza il runtime e non modifica il contratto esterno.</p>
+                            <h3 class="font-semibold">HTTP adapter</h3>
+                            <p class="mt-2 text-sm leading-5">Configura endpoint, query, test request e mapping JSON per provider senza adapter nativo.</p>
+                            <a href="{{ route('admin.providers.http-adapter.configure', $provider->id) }}" class="mt-3 inline-flex rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-500">Configura e testa</a>
                         </div>
                     </div>
 

@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
@@ -276,5 +281,174 @@ final class ProviderManagementController extends Controller
         );
 
         return back()->with('status', 'Credenziale cifrata salvata e ruotata per l’ambiente corrente.');
+    }
+
+    public function configureHttpAdapter(int $provider): View
+    {
+        $providerRow = DB::table('data_providers as p')
+            ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
+            ->where('p.id', $provider)
+            ->select([
+                'p.id',
+                'p.code',
+                'p.name',
+                'p.base_url',
+                'p.active',
+                'rc.is_enabled',
+                'rc.metadata',
+            ])
+            ->first();
+
+        abort_unless($providerRow, 404);
+
+        $metadata = json_decode((string) ($providerRow->metadata ?? ''), true) ?: [];
+
+        return view('admin.providers.http-adapter', [
+            'provider' => $providerRow,
+            'metadata' => $metadata,
+            'capabilities' => ['competitions', 'seasons', 'teams'],
+            'testResult' => session('http_adapter_test_result'),
+            'testInput' => session('http_adapter_test_input', []),
+        ]);
+    }
+
+    public function testHttpAdapter(Request $request, int $provider): RedirectResponse
+    {
+        $providerRow = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($providerRow, 404);
+
+        $data = $request->validate([
+            'capability' => ['required', 'in:competitions,seasons,teams'],
+            'method' => ['required', 'in:GET,POST'],
+            'endpoint' => ['required', 'string', 'max:250'],
+            'query_params' => ['nullable', 'string', 'max:4000'],
+            'body_template' => ['nullable', 'string', 'max:8000'],
+            'items_path' => ['nullable', 'string', 'max:250'],
+            'field_mappings' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        $url = $this->buildProviderUrl((string) $providerRow->base_url, $data['endpoint']);
+        $query = $this->parseKeyValueLines($data['query_params'] ?? '');
+        $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
+
+        try {
+            $response = $data['method'] === 'POST'
+                ? Http::timeout(15)->acceptJson()->post($url, $this->parseJsonBody($data['body_template'] ?? ''))
+                : Http::timeout(15)->acceptJson()->get($url, $query);
+
+            $json = $response->json();
+            $items = $this->extractItems($json, $data['items_path'] ?? '');
+            $firstItem = $items[0] ?? null;
+
+            $result = [
+                'ok' => $response->successful(),
+                'resolved_url' => $url,
+                'status' => $response->status(),
+                'items_count' => count($items),
+                'first_item' => $firstItem,
+                'normalized_preview' => is_array($firstItem)
+                    ? $this->mapFields($firstItem, $fieldMappings)
+                    : null,
+                'raw_preview' => $this->limitPayload($json),
+            ];
+        } catch (ConnectionException | RequestException | Throwable $e) {
+            $result = [
+                'ok' => false,
+                'resolved_url' => $url,
+                'status' => null,
+                'items_count' => 0,
+                'first_item' => null,
+                'normalized_preview' => null,
+                'raw_preview' => null,
+                'error' => $e->getMessage(),
+            ];
+        }
+
+        return back()
+            ->with('http_adapter_test_result', $result)
+            ->with('http_adapter_test_input', $data);
+    }
+
+    private function buildProviderUrl(string $baseUrl, string $endpoint): string
+    {
+        $baseUrl = rtrim($baseUrl, '/');
+        $endpoint = ltrim($endpoint, '/');
+
+        return "{$baseUrl}/{$endpoint}";
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parseKeyValueLines(string $value): array
+    {
+        return collect(preg_split('/\R/', $value) ?: [])
+            ->map(fn (string $line): string => trim($line))
+            ->filter()
+            ->mapWithKeys(function (string $line): array {
+                [$key, $value] = array_pad(explode('=', $line, 2), 2, '');
+
+                return [trim($key) => trim($value)];
+            })
+            ->filter(fn (string $value, string $key): bool => $key !== '')
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseJsonBody(string $value): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @param  mixed  $payload
+     * @return list<mixed>
+     */
+    private function extractItems(mixed $payload, ?string $itemsPath): array
+    {
+        $items = filled($itemsPath)
+            ? data_get($payload, (string) $itemsPath)
+            : $payload;
+
+        if (! is_array($items)) {
+            return [];
+        }
+
+        return Arr::isAssoc($items) ? [$items] : array_values($items);
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @param  array<string, string>  $fieldMappings
+     * @return array<string, mixed>
+     */
+    private function mapFields(array $item, array $fieldMappings): array
+    {
+        return collect($fieldMappings)
+            ->mapWithKeys(fn (string $sourcePath, string $targetField): array => [
+                $targetField => data_get($item, $sourcePath),
+            ])
+            ->all();
+    }
+
+    private function limitPayload(mixed $payload): mixed
+    {
+        if (! is_array($payload)) {
+            return $payload;
+        }
+
+        return collect($payload)
+            ->map(fn (mixed $value): mixed => is_array($value) && ! Arr::isAssoc($value)
+                ? array_slice($value, 0, 3)
+                : $value)
+            ->all();
     }
 }

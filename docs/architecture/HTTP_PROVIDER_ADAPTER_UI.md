@@ -149,6 +149,23 @@ Administration
 -> Configura HTTP Adapter
 ```
 
+Prima schermata implementata:
+
+```text
+/admin/providers/{provider}/http-adapter
+```
+
+La pagina permette di:
+
+- scegliere capability;
+- configurare method, endpoint, query params e body;
+- impostare `items_path`;
+- dichiarare un primo field mapping;
+- lanciare una test request;
+- vedere status, URL risolto, primo item raw e preview normalizzata.
+
+La prima versione non salva ancora il mapping definitivo: serve a replicare dentro la UI il ciclo di esplorazione che oggi viene fatto in Postman.
+
 ### Step A - Capability
 
 Scelta capability:

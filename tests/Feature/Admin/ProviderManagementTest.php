@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -177,6 +178,89 @@ class ProviderManagementTest extends TestCase
             ->assertSee('data-installed-adapter', false)
             ->assertSee('data-code="api_football"', false)
             ->assertSee('data-credential-key="api_key"', false);
+    }
+
+    public function test_http_adapter_configuration_page_can_be_opened_from_provider_management(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'thesportsdb',
+            'name' => 'TheSportsDB',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => false,
+            'priority' => 30,
+            'role' => 'fallback',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertOk()
+            ->assertSee('HTTP Adapter')
+            ->assertSee('Test request')
+            ->assertSee('Items path')
+            ->assertSee('Field mapping');
+    }
+
+    public function test_http_adapter_test_request_builds_preview_from_mapping(): void
+    {
+        Http::fake([
+            'www.thesportsdb.com/*' => Http::response([
+                'leagues' => [
+                    [
+                        'idLeague' => '4332',
+                        'strLeague' => 'Italian Serie A',
+                        'strCountry' => 'Italy',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'thesportsdb',
+            'name' => 'TheSportsDB',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'competitions',
+                'method' => 'GET',
+                'endpoint' => 'search_all_leagues.php',
+                'query_params' => 'c=Italy',
+                'items_path' => 'leagues',
+                'field_mappings' => "external_id=idLeague\nname=strLeague\ncountry=strCountry",
+            ]);
+
+        $response->assertRedirect();
+
+        $result = session('http_adapter_test_result');
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame(200, $result['status']);
+        $this->assertSame(1, $result['items_count']);
+        $this->assertSame([
+            'external_id' => '4332',
+            'name' => 'Italian Serie A',
+            'country' => 'Italy',
+        ], $result['normalized_preview']);
+
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'search_all_leagues.php'));
     }
 
     public function test_provider_without_adapter_cannot_be_activated(): void
