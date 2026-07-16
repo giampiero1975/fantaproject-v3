@@ -1,15 +1,25 @@
 import './bootstrap';
 
 const initializeProviderOnboarding = async () => {
-    const form = document.querySelector('#nuovo-provider form');
+    const section = document.querySelector('#nuovo-provider');
+    const form = section?.querySelector('form');
 
     if (!form) {
         return;
     }
 
+    document.querySelector('a[href="#nuovo-provider"]')?.addEventListener('click', () => {
+        const accordion = section.querySelector('details');
+        if (accordion) {
+            accordion.open = true;
+        }
+    });
+
     const codeInput = form.querySelector('input[name="code"]');
     const nameInput = form.querySelector('input[name="name"]');
     const credentialKeyInput = form.querySelector('input[name="credential_key"]');
+    const credentialValueInput = form.querySelector('input[name="credential_value"]');
+    const credentialValueLabel = credentialValueInput?.closest('label');
     const submitButton = form.querySelector('button[type="submit"], button:not([type])');
 
     if (!codeInput) {
@@ -80,20 +90,37 @@ const initializeProviderOnboarding = async () => {
 
             if (!adapter) {
                 details.innerHTML = '<strong>Seleziona un provider</strong><p class="mt-1 text-xs">Nome, codice, credenziale richiesta e capacità arrivano automaticamente dall’adapter.</p>';
+                credentialValueLabel?.classList.remove('hidden');
+                if (credentialValueInput) {
+                    credentialValueInput.disabled = false;
+                    credentialValueInput.value = '';
+                    credentialValueInput.placeholder = 'Token o API key';
+                }
                 return;
             }
 
             const capabilities = adapter.capabilities.length > 0
                 ? adapter.capabilities.join(', ')
                 : 'nessuna dichiarata';
+            const credentialRequired = Boolean(adapter.credential_key);
 
             details.innerHTML = `
                 <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                     <div><span class="block text-xs font-semibold uppercase tracking-wide text-blue-700">Nome</span>${adapter.name}</div>
                     <div><span class="block text-xs font-semibold uppercase tracking-wide text-blue-700">Codice</span><code>${adapter.code}</code></div>
-                    <div><span class="block text-xs font-semibold uppercase tracking-wide text-blue-700">Credenziale</span><code>${adapter.credential_key ?? 'non richiesta'}</code></div>
+                    <div><span class="block text-xs font-semibold uppercase tracking-wide text-blue-700">Credenziale</span><code>${adapter.credential_key ?? 'nessuna credenziale richiesta'}</code></div>
                     <div><span class="block text-xs font-semibold uppercase tracking-wide text-blue-700">Capacità</span>${capabilities}</div>
                 </div>`;
+
+            credentialValueLabel?.classList.toggle('hidden', !credentialRequired);
+            if (credentialValueInput) {
+                credentialValueInput.disabled = !credentialRequired;
+                credentialValueInput.required = credentialRequired;
+                credentialValueInput.value = '';
+                credentialValueInput.placeholder = credentialRequired
+                    ? `Inserisci ${adapter.credential_key}`
+                    : 'Nessuna credenziale richiesta';
+            }
         };
 
         select.addEventListener('change', renderDetails);
