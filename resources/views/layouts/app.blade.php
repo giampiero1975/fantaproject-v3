@@ -40,10 +40,28 @@
                 </flux:sidebar.item>
 
                 @hasanyrole('admin|super_admin')
-                    <flux:sidebar.group class="fo-sidebar-group grid" heading="Administration" expandable :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*')">
-                        <flux:sidebar.item class="fo-sidebar-item" icon="users" href="#">Utenti</flux:sidebar.item>
-                        <flux:sidebar.item class="fo-sidebar-item" icon="shield-check" href="#">Ruoli e permessi</flux:sidebar.item>
-                        <flux:sidebar.item class="fo-sidebar-item" icon="circle-stack" href="#">Database</flux:sidebar.item>
+                    <flux:sidebar.group
+                        class="fo-sidebar-group grid"
+                        heading="Administration"
+                        expandable
+                        :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*')"
+                    >
+                        <div class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Accessi
+                        </div>
+
+                        <flux:sidebar.item class="fo-sidebar-item" icon="users" href="#">
+                            Utenti
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item class="fo-sidebar-item" icon="shield-check" href="#">
+                            Ruoli e permessi
+                        </flux:sidebar.item>
+
+                        <div class="mt-2 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Data Platform
+                        </div>
+
                         <flux:sidebar.item
                             class="fo-sidebar-item"
                             icon="server-stack"
@@ -52,6 +70,7 @@
                         >
                             Provider Management
                         </flux:sidebar.item>
+
                         <flux:sidebar.item
                             class="fo-sidebar-item"
                             icon="calendar-days"
@@ -60,7 +79,13 @@
                         >
                             Gestione Stagioni
                         </flux:sidebar.item>
+
+                        <div class="mt-2 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Sistema
+                        </div>
+
                         <flux:sidebar.item class="fo-sidebar-item" icon="cog-6-tooth" href="#">Configurazione</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="circle-stack" href="#">Database</flux:sidebar.item>
                     </flux:sidebar.group>
 
                     <flux:sidebar.group class="fo-sidebar-group grid" heading="Diagnostics" expandable :expanded="false">
