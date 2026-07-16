@@ -15,6 +15,7 @@ const initializeProviderOnboarding = () => {
 
     const credentialKeyInput = form.querySelector('input[name="credential_key"]');
     const credentialValueInput = form.querySelector('input[name="credential_value"]');
+    const codeInput = form.querySelector('input[name="code"]');
     const credentialKeyLabel = credentialKeyInput?.closest('label');
     const credentialValueLabel = credentialValueInput?.closest('label');
 
@@ -63,6 +64,14 @@ const initializeProviderOnboarding = () => {
 
     credentialRequired.addEventListener('change', syncCredentialFields);
     syncCredentialFields();
+
+    codeInput?.addEventListener('blur', () => {
+        codeInput.value = codeInput.value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    });
 };
 
 document.addEventListener('DOMContentLoaded', initializeProviderOnboarding);

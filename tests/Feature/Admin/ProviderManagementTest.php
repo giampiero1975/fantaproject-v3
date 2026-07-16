@@ -99,6 +99,28 @@ class ProviderManagementTest extends TestCase
         ]);
     }
 
+    public function test_provider_code_is_normalized_before_validation(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.providers.store'), [
+            'code' => 'The Sports DB',
+            'name' => 'TheSportsDB',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'role' => 'fallback',
+            'priority' => 30,
+            'plan' => 'Free',
+            'credential_required' => 0,
+            'capabilities' => ['competitions', 'seasons', 'teams'],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('data_providers', [
+            'code' => 'the_sports_db',
+            'name' => 'TheSportsDB',
+            'active' => 0,
+        ]);
+    }
+
     public function test_provider_without_adapter_cannot_be_activated(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

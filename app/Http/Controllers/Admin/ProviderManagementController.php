@@ -72,6 +72,10 @@ final class ProviderManagementController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $request->merge([
+            'code' => $this->normalizeProviderCode((string) $request->input('code')),
+        ]);
+
         $data = $request->validate([
             'code' => ['required', 'string', 'max:60', 'regex:/^[a-z0-9_]+$/', 'unique:data_providers,code'],
             'name' => ['required', 'string', 'max:120'],
@@ -143,6 +147,14 @@ final class ProviderManagementController extends Controller
                 ? 'Provider registrato e attivato nel runtime.'
                 : 'Provider registrato. Rimane disattivato finché non viene installato il relativo adapter applicativo.'
         );
+    }
+
+    private function normalizeProviderCode(string $code): string
+    {
+        $code = strtolower(trim($code));
+        $code = preg_replace('/[^a-z0-9]+/', '_', $code) ?? '';
+
+        return trim($code, '_');
     }
 
     public function update(Request $request, int $provider): RedirectResponse
