@@ -40,10 +40,23 @@
                 </flux:sidebar.item>
 
                 @hasanyrole('admin|super_admin')
-                    <flux:sidebar.group class="fo-sidebar-group grid" heading="Administration" expandable :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*')">
+                    <flux:sidebar.group
+                        class="fo-sidebar-group fo-sidebar-admin-group grid"
+                        heading="Administration"
+                        expandable
+                        :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*')"
+                    >
+                        <div class="fo-sidebar-section-label">
+                            <span>Accessi</span>
+                        </div>
+
                         <flux:sidebar.item class="fo-sidebar-item" icon="users" href="#">Utenti</flux:sidebar.item>
                         <flux:sidebar.item class="fo-sidebar-item" icon="shield-check" href="#">Ruoli e permessi</flux:sidebar.item>
-                        <flux:sidebar.item class="fo-sidebar-item" icon="circle-stack" href="#">Database</flux:sidebar.item>
+
+                        <div class="fo-sidebar-section-label mt-3">
+                            <span>Data Platform</span>
+                        </div>
+
                         <flux:sidebar.item
                             class="fo-sidebar-item"
                             icon="server-stack"
@@ -52,6 +65,7 @@
                         >
                             Provider Management
                         </flux:sidebar.item>
+
                         <flux:sidebar.item
                             class="fo-sidebar-item"
                             icon="calendar-days"
@@ -60,7 +74,13 @@
                         >
                             Gestione Stagioni
                         </flux:sidebar.item>
+
+                        <div class="fo-sidebar-section-label mt-3">
+                            <span>Sistema</span>
+                        </div>
+
                         <flux:sidebar.item class="fo-sidebar-item" icon="cog-6-tooth" href="#">Configurazione</flux:sidebar.item>
+                        <flux:sidebar.item class="fo-sidebar-item" icon="circle-stack" href="#">Database</flux:sidebar.item>
                     </flux:sidebar.group>
 
                     <flux:sidebar.group class="fo-sidebar-group grid" heading="Diagnostics" expandable :expanded="false">
