@@ -53,6 +53,10 @@
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
+        "test:dry-run": [
+            "@php artisan config:clear --ansi",
+            "@php artisan test --dry-run"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
