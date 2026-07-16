@@ -6,7 +6,7 @@
         </div>
     </x-slot>
 
-    <div class="space-y-6">
+    <div class="space-y-6" data-season-management>
         @if (session('status'))<div class="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm text-emerald-100">{{ session('status') }}</div>@endif
         @if (session('error'))<div class="rounded-xl border border-red-400/20 bg-red-400/5 p-4 text-sm text-red-100">{{ session('error') }}</div>@endif
         @if ($errors->any())<div class="rounded-xl border border-red-400/20 bg-red-400/5 p-4 text-sm text-red-100"><ul class="list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
@@ -29,19 +29,38 @@
 
         <div class="grid gap-6 xl:grid-cols-3">
             <section class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 xl:col-span-2">
-                <h2 class="text-lg font-semibold text-white">Analizza timeline</h2>
-                <p class="mt-1 text-sm text-slate-400">Nessun codice SA/SB o ID 135/136 da digitare: vengono risolti dal registry.</p>
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">Analizza timeline</h2>
+                        <p class="mt-1 text-sm text-slate-400">Nessun codice SA/SB o ID 135/136 da digitare: vengono risolti dal registry.</p>
+                    </div>
+                    <details class="relative">
+                        <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-white/[0.05] text-slate-300 ring-1 ring-white/10 hover:bg-white/[0.09] [&::-webkit-details-marker]:hidden" title="Filtra per nazione" aria-label="Filtra competizioni per nazione">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4.5h18l-7 8v5.25l-4 1.75v-7L3 4.5Z" /></svg>
+                        </summary>
+                        <div class="absolute right-0 z-20 mt-2 w-64 rounded-xl bg-slate-900 p-3 shadow-xl ring-1 ring-white/10">
+                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-400">Nazione</label>
+                            <select data-season-country-filter class="mt-2 w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-white ring-1 ring-white/10">
+                                <option value="">Tutte le nazioni</option>
+                                @foreach($countries as $country)
+                                    <option value="{{ $country->country_id }}">{{ $country->country_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </details>
+                </div>
 
                 <form method="POST" action="{{ route('admin.seasons.analyze') }}" class="mt-5 grid gap-4 md:grid-cols-3">
                     @csrf
                     <label class="space-y-2 md:col-span-2">
                         <span class="text-sm font-medium text-slate-300">Competizione interna</span>
-                        <select name="league_id" class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white" required>
+                        <select name="league_id" data-season-league-select class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white" required>
                             <option value="">Seleziona...</option>
                             @foreach($leagues as $league)
-                                <option value="{{ $league->id }}" @selected((string) old('league_id', $lastParameters['league_id'] ?? '') === (string) $league->id)>{{ $league->name }} · ID interno {{ $league->id }}</option>
+                                <option value="{{ $league->id }}" data-country-id="{{ $league->country_id }}" @selected((string) old('league_id', $lastParameters['league_id'] ?? '') === (string) $league->id)>{{ $league->country_name ? $league->country_name.' · ' : '' }}{{ $league->name }} · ID interno {{ $league->id }}</option>
                             @endforeach
                         </select>
+                        <span data-season-filter-empty class="hidden block text-xs text-amber-300">Nessuna competizione disponibile per la nazione selezionata.</span>
                     </label>
                     <label class="space-y-2">
                         <span class="text-sm font-medium text-slate-300">Override history</span>
@@ -65,16 +84,17 @@
 
         <section class="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
             <h2 class="text-lg font-semibold text-white">Registry competizioni e provider</h2>
-            <p class="mt-1 text-sm text-slate-400">Questi valori sono informativi e provengono dal database.</p>
+            <p class="mt-1 text-sm text-slate-400">Questi valori sono informativi e provengono dal database. Il filtro nazione applicato sopra agisce anche su questa tabella.</p>
             <div class="mt-4 overflow-x-auto">
                 <table class="w-full text-left text-sm">
-                    <thead class="text-slate-500"><tr><th class="pb-3">Competizione</th><th class="pb-3">Provider</th><th class="pb-3">Mapping</th><th class="pb-3">Ruolo</th><th class="pb-3">Stato</th><th class="pb-3">Piano</th></tr></thead>
+                    <thead class="text-slate-500"><tr><th class="pb-3">Nazione</th><th class="pb-3">Competizione</th><th class="pb-3">Provider</th><th class="pb-3">Mapping</th><th class="pb-3">Ruolo</th><th class="pb-3">Stato</th><th class="pb-3">Piano</th></tr></thead>
                     <tbody class="divide-y divide-white/5">
                         @foreach($leagues as $league)
                             @foreach($league->providers as $provider)
-                                <tr><td class="py-3 text-white">{{ $league->name }}</td><td class="py-3 text-slate-300">{{ $provider->provider_name }}</td><td class="py-3 font-mono text-slate-300">{{ $provider->external_id }}</td><td class="py-3 text-slate-400">{{ $provider->role ?? '—' }}</td><td class="py-3 {{ $provider->is_enabled ? 'text-emerald-300' : 'text-slate-500' }}">{{ $provider->is_enabled ? 'Attivo' : 'Disattivato' }}</td><td class="py-3 text-slate-400">{{ $provider->plan ?? '—' }}</td></tr>
+                                <tr data-season-registry-row data-country-id="{{ $league->country_id }}"><td class="py-3 text-slate-400">{{ $league->country_name ?? '—' }}</td><td class="py-3 text-white">{{ $league->name }}</td><td class="py-3 text-slate-300">{{ $provider->provider_name }}</td><td class="py-3 font-mono text-slate-300">{{ $provider->external_id }}</td><td class="py-3 text-slate-400">{{ $provider->role ?? '—' }}</td><td class="py-3 {{ $provider->is_enabled ? 'text-emerald-300' : 'text-slate-500' }}">{{ $provider->is_enabled ? 'Attivo' : 'Disattivato' }}</td><td class="py-3 text-slate-400">{{ $provider->plan ?? '—' }}</td></tr>
                             @endforeach
                         @endforeach
+                        <tr data-season-registry-empty class="hidden"><td colspan="7" class="py-5 text-center text-slate-500">Nessuna competizione per la nazione selezionata.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -107,4 +127,47 @@
             </section>
         @endif
     </div>
+
+    <script>
+        (() => {
+            const root = document.querySelector('[data-season-management]');
+            if (!root) return;
+
+            const filter = root.querySelector('[data-season-country-filter]');
+            const leagueSelect = root.querySelector('[data-season-league-select]');
+            const leagueOptions = Array.from(leagueSelect?.querySelectorAll('option[data-country-id]') ?? []);
+            const registryRows = Array.from(root.querySelectorAll('[data-season-registry-row]'));
+            const leagueEmpty = root.querySelector('[data-season-filter-empty]');
+            const registryEmpty = root.querySelector('[data-season-registry-empty]');
+
+            const applyFilter = () => {
+                const countryId = filter?.value ?? '';
+                let visibleLeagues = 0;
+                let visibleRows = 0;
+
+                leagueOptions.forEach((option) => {
+                    const show = countryId === '' || option.dataset.countryId === countryId;
+                    option.hidden = !show;
+                    option.disabled = !show;
+                    if (show) visibleLeagues++;
+                });
+
+                if (leagueSelect?.selectedOptions[0]?.disabled) {
+                    leagueSelect.value = '';
+                }
+
+                registryRows.forEach((row) => {
+                    const show = countryId === '' || row.dataset.countryId === countryId;
+                    row.classList.toggle('hidden', !show);
+                    if (show) visibleRows++;
+                });
+
+                leagueEmpty?.classList.toggle('hidden', visibleLeagues !== 0);
+                registryEmpty?.classList.toggle('hidden', visibleRows !== 0);
+            };
+
+            filter?.addEventListener('change', applyFilter);
+            applyFilter();
+        })();
+    </script>
 </x-app-layout>
