@@ -71,6 +71,14 @@ body {
     overflow-x: hidden !important;
 }
 
+@media (min-width: 64rem) {
+    .fo-app-sidebar {
+        width: 18rem !important;
+        min-width: 18rem !important;
+        max-width: 18rem !important;
+    }
+}
+
 .fo-mobile-header {
     border-color: var(--fo-border);
     background: color-mix(in srgb, var(--fo-corporate) 92%, transparent);
