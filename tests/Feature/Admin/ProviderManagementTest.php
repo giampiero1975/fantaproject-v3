@@ -251,6 +251,102 @@ class ProviderManagementTest extends TestCase
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'search_all_leagues.php'));
     }
 
+    public function test_http_adapter_test_request_uses_provider_credentials_for_installed_adapters(): void
+    {
+        Http::fake([
+            'api.football-data.org/*' => Http::response([
+                'competitions' => [
+                    [
+                        'id' => 2019,
+                        'name' => 'Serie A',
+                        'code' => 'SA',
+                        'area' => ['name' => 'Italy', 'code' => 'ITA'],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_credentials')->insert([
+            'data_provider_id' => $providerId,
+            'environment' => app()->environment(),
+            'credential_key' => 'token',
+            'encrypted_value' => Crypt::encryptString('secret-football-data-token'),
+            'is_active' => true,
+            'rotated_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'competitions',
+                'method' => 'GET',
+                'endpoint' => 'competitions',
+                'query_params' => '',
+                'items_path' => 'competitions',
+                'field_mappings' => "external_id=code\nname=name\ncountry=area.name",
+            ])
+            ->assertRedirect();
+
+        Http::assertSent(fn ($request): bool => $request->hasHeader('X-Auth-Token', 'secret-football-data-token'));
+    }
+
+    public function test_http_adapter_test_request_uses_api_football_credentials(): void
+    {
+        Http::fake([
+            'v3.football.api-sports.io/*' => Http::response([
+                'response' => [
+                    [
+                        'league' => ['id' => 135, 'name' => 'Serie A'],
+                        'country' => ['name' => 'Italy', 'code' => 'IT'],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'api_football',
+            'name' => 'API-Football',
+            'base_url' => 'https://v3.football.api-sports.io',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_credentials')->insert([
+            'data_provider_id' => $providerId,
+            'environment' => app()->environment(),
+            'credential_key' => 'api_key',
+            'encrypted_value' => Crypt::encryptString('secret-api-football-key'),
+            'is_active' => true,
+            'rotated_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'competitions',
+                'method' => 'GET',
+                'endpoint' => 'leagues',
+                'query_params' => 'id=135',
+                'items_path' => 'response',
+                'field_mappings' => "external_id=league.id\nname=league.name\ncountry=country.name",
+            ])
+            ->assertRedirect();
+
+        Http::assertSent(fn ($request): bool => $request->hasHeader('x-apisports-key', 'secret-api-football-key'));
+    }
+
     public function test_http_adapter_mapping_can_be_saved_to_runtime_tables(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

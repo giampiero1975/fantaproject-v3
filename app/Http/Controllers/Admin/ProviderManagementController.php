@@ -400,9 +400,10 @@ final class ProviderManagementController extends Controller
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
 
         try {
+            $pendingRequest = $this->httpAdapterRequest($providerRow);
             $response = $data['method'] === 'POST'
-                ? Http::timeout(15)->acceptJson()->post($url, $this->parseJsonBody($data['body_template'] ?? ''))
-                : Http::timeout(15)->acceptJson()->get($url, $query);
+                ? $pendingRequest->post($url, $this->parseJsonBody($data['body_template'] ?? ''))
+                : $pendingRequest->get($url, $query);
 
             $json = $response->json();
             $items = $this->extractItems($json, $data['items_path'] ?? '');
@@ -710,6 +711,43 @@ final class ProviderManagementController extends Controller
         $endpoint = ltrim($endpoint, '/');
 
         return "{$baseUrl}/{$endpoint}";
+    }
+
+    private function httpAdapterRequest(object $provider): \Illuminate\Http\Client\PendingRequest
+    {
+        $request = Http::timeout(15)->acceptJson();
+        $adapter = app(ProviderAdapterDefinitionRepository::class)->findInstalled((string) $provider->code);
+
+        if (! is_array($adapter) || blank($adapter['credential_key'] ?? null)) {
+            return $request;
+        }
+
+        $credential = DB::table('data_provider_credentials')
+            ->where('data_provider_id', $provider->id)
+            ->where('environment', app()->environment())
+            ->where('credential_key', $adapter['credential_key'])
+            ->where('is_active', true)
+            ->first();
+
+        if (! $credential) {
+            return $request;
+        }
+
+        try {
+            $value = Crypt::decryptString($credential->encrypted_value);
+        } catch (Throwable) {
+            return $request;
+        }
+
+        if ($value === '') {
+            return $request;
+        }
+
+        return match ((string) $provider->code) {
+            'football_data' => $request->withHeaders(['X-Auth-Token' => $value]),
+            'api_football' => $request->withHeaders(['x-apisports-key' => $value]),
+            default => $request,
+        };
     }
 
     /**
