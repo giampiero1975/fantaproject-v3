@@ -251,6 +251,56 @@ class ProviderManagementTest extends TestCase
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'search_all_leagues.php'));
     }
 
+    public function test_http_adapter_mapping_can_be_saved_to_runtime_tables(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'thesportsdb',
+            'name' => 'TheSportsDB',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), [
+                'capability' => 'competitions',
+                'method' => 'GET',
+                'endpoint' => 'search_all_leagues.php',
+                'query_params' => 'c=Italy',
+                'items_path' => 'countries',
+                'field_mappings' => "external_id=idLeague\nname=strLeague\ncountry=strCountry",
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+
+        $endpoint = DB::table('data_provider_http_endpoints')
+            ->where('data_provider_id', $providerId)
+            ->where('capability', 'competitions')
+            ->first();
+
+        $this->assertNotNull($endpoint);
+        $this->assertSame('GET', $endpoint->method);
+        $this->assertSame('search_all_leagues.php', $endpoint->endpoint);
+        $this->assertSame('countries', $endpoint->items_path);
+        $this->assertTrue((bool) $endpoint->is_enabled);
+        $this->assertSame('saved_not_tested', $endpoint->validation_status);
+        $this->assertSame(['c' => 'Italy'], json_decode($endpoint->query_params, true));
+
+        $mapping = DB::table('data_provider_payload_mappings')
+            ->where('data_provider_http_endpoint_id', $endpoint->id)
+            ->first();
+
+        $this->assertNotNull($mapping);
+        $this->assertSame('mapping_validated', $mapping->validation_status);
+        $this->assertSame([
+            'external_id' => 'idLeague',
+            'name' => 'strLeague',
+            'country' => 'strCountry',
+        ], json_decode($mapping->field_mappings, true));
+    }
+
     public function test_provider_without_adapter_cannot_be_activated(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

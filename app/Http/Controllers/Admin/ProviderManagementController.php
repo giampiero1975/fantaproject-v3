@@ -339,11 +339,38 @@ final class ProviderManagementController extends Controller
         abort_unless($providerRow, 404);
 
         $metadata = json_decode((string) ($providerRow->metadata ?? ''), true) ?: [];
+        $savedEndpoints = DB::table('data_provider_http_endpoints as e')
+            ->leftJoin('data_provider_payload_mappings as m', 'm.data_provider_http_endpoint_id', '=', 'e.id')
+            ->where('e.data_provider_id', $provider)
+            ->orderBy('e.capability')
+            ->get([
+                'e.id',
+                'e.capability',
+                'e.method',
+                'e.endpoint',
+                'e.query_params',
+                'e.items_path',
+                'e.is_enabled',
+                'e.validation_status',
+                'e.last_status_code',
+                'e.last_tested_at',
+                'm.field_mappings',
+                'm.required_fields',
+                'm.validation_status as mapping_validation_status',
+            ])
+            ->map(function (object $endpoint): object {
+                $endpoint->query_params_decoded = json_decode((string) $endpoint->query_params, true) ?: [];
+                $endpoint->field_mappings_decoded = json_decode((string) $endpoint->field_mappings, true) ?: [];
+                $endpoint->required_fields_decoded = json_decode((string) $endpoint->required_fields, true) ?: [];
+
+                return $endpoint;
+            });
 
         return view('admin.providers.http-adapter', [
             'provider' => $providerRow,
             'metadata' => $metadata,
             'capabilities' => ['competitions', 'seasons', 'teams'],
+            'savedEndpoints' => $savedEndpoints,
             'testResult' => session('http_adapter_test_result'),
             'testInput' => session('http_adapter_test_input', []),
         ]);
@@ -354,15 +381,7 @@ final class ProviderManagementController extends Controller
         $providerRow = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($providerRow, 404);
 
-        $data = $request->validate([
-            'capability' => ['required', 'in:competitions,seasons,teams'],
-            'method' => ['required', 'in:GET,POST'],
-            'endpoint' => ['required', 'string', 'max:250'],
-            'query_params' => ['nullable', 'string', 'max:4000'],
-            'body_template' => ['nullable', 'string', 'max:8000'],
-            'items_path' => ['nullable', 'string', 'max:250'],
-            'field_mappings' => ['nullable', 'string', 'max:4000'],
-        ]);
+        $data = $this->validateHttpAdapterInput($request);
 
         $url = $this->buildProviderUrl((string) $providerRow->base_url, $data['endpoint']);
         $query = $this->parseKeyValueLines($data['query_params'] ?? '');
@@ -404,6 +423,129 @@ final class ProviderManagementController extends Controller
         return back()
             ->with('http_adapter_test_result', $result)
             ->with('http_adapter_test_input', $data);
+    }
+
+    public function saveHttpAdapter(Request $request, int $provider): RedirectResponse
+    {
+        $providerRow = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($providerRow, 404);
+
+        $data = $this->validateHttpAdapterInput($request);
+        $query = $this->parseKeyValueLines($data['query_params'] ?? '');
+        $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
+        $requiredFields = $this->requiredFieldsFor($data['capability']);
+        $mappingStatus = $this->mappingStatus($fieldMappings, $requiredFields);
+        $testResult = session('http_adapter_test_result');
+        $testInput = session('http_adapter_test_input', []);
+        $testBelongsToCurrentForm = is_array($testResult)
+            && is_array($testInput)
+            && $this->sameHttpAdapterInput($data, $testInput);
+
+        DB::transaction(function () use ($provider, $data, $query, $fieldMappings, $requiredFields, $mappingStatus, $testResult, $testBelongsToCurrentForm): void {
+            DB::table('data_provider_http_endpoints')->updateOrInsert(
+                [
+                    'data_provider_id' => $provider,
+                    'capability' => $data['capability'],
+                ],
+                [
+                    'method' => $data['method'],
+                    'endpoint' => $data['endpoint'],
+                    'query_params' => $query !== [] ? json_encode($query, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                    'body_template' => filled($data['body_template'] ?? '') ? json_encode($this->parseJsonBody($data['body_template']), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                    'items_path' => $data['items_path'] ?: null,
+                    'is_enabled' => $mappingStatus === 'mapping_validated',
+                    'validation_status' => $testBelongsToCurrentForm && ($testResult['ok'] ?? false)
+                        ? 'test_passed'
+                        : 'saved_not_tested',
+                    'last_status_code' => $testBelongsToCurrentForm ? ($testResult['status'] ?? null) : null,
+                    'last_tested_at' => $testBelongsToCurrentForm ? now() : null,
+                    'sample_payload' => $testBelongsToCurrentForm ? json_encode($testResult['first_item'] ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                    'sample_normalized' => $testBelongsToCurrentForm ? json_encode($testResult['normalized_preview'] ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+
+            $endpointId = DB::table('data_provider_http_endpoints')
+                ->where('data_provider_id', $provider)
+                ->where('capability', $data['capability'])
+                ->value('id');
+
+            DB::table('data_provider_payload_mappings')->updateOrInsert(
+                ['data_provider_http_endpoint_id' => $endpointId],
+                [
+                    'field_mappings' => json_encode($fieldMappings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'required_fields' => json_encode($requiredFields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'validation_status' => $mappingStatus,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        });
+
+        return back()
+            ->with('status', 'HTTP adapter salvato nel runtime provider.')
+            ->with('http_adapter_test_input', $data)
+            ->with('http_adapter_test_result', $testResult);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validateHttpAdapterInput(Request $request): array
+    {
+        return $request->validate([
+            'capability' => ['required', 'in:competitions,seasons,teams'],
+            'method' => ['required', 'in:GET,POST'],
+            'endpoint' => ['required', 'string', 'max:250'],
+            'query_params' => ['nullable', 'string', 'max:4000'],
+            'body_template' => ['nullable', 'string', 'max:8000'],
+            'items_path' => ['nullable', 'string', 'max:250'],
+            'field_mappings' => ['nullable', 'string', 'max:4000'],
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function requiredFieldsFor(string $capability): array
+    {
+        return match ($capability) {
+            'competitions' => ['external_id', 'name', 'country'],
+            'seasons' => ['external_id', 'name'],
+            'teams' => ['external_id', 'name'],
+            default => ['external_id', 'name'],
+        };
+    }
+
+    /**
+     * @param  array<string, string>  $fieldMappings
+     * @param  list<string>  $requiredFields
+     */
+    private function mappingStatus(array $fieldMappings, array $requiredFields): string
+    {
+        foreach ($requiredFields as $field) {
+            if (blank($fieldMappings[$field] ?? null)) {
+                return 'mapping_incomplete';
+            }
+        }
+
+        return 'mapping_validated';
+    }
+
+    /**
+     * @param  array<string, mixed>  $current
+     * @param  array<string, mixed>  $previous
+     */
+    private function sameHttpAdapterInput(array $current, array $previous): bool
+    {
+        foreach (['capability', 'method', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings'] as $key) {
+            if (($current[$key] ?? null) !== ($previous[$key] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function buildProviderUrl(string $baseUrl, string $endpoint): string

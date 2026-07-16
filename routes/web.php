@@ -40,6 +40,7 @@ Route::middleware([
     Route::post('/providers/{provider}/credentials', [ProviderManagementController::class, 'rotateCredential'])->name('providers.credentials.rotate');
     Route::get('/providers/{provider}/http-adapter', [ProviderManagementController::class, 'configureHttpAdapter'])->name('providers.http-adapter.configure');
     Route::post('/providers/{provider}/http-adapter/test', [ProviderManagementController::class, 'testHttpAdapter'])->name('providers.http-adapter.test');
+    Route::post('/providers/{provider}/http-adapter', [ProviderManagementController::class, 'saveHttpAdapter'])->name('providers.http-adapter.save');
 
     Route::get('/manage-season', [SeasonManagementController::class, 'index'])->name('seasons.index');
     Route::post('/manage-season/analyze', [SeasonManagementController::class, 'analyze'])->name('seasons.analyze');

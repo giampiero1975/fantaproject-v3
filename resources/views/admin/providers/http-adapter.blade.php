@@ -16,7 +16,7 @@
                 <p class="mt-2 leading-5">Parti da <strong>competitions</strong>. Solo dopo aver collegato la competizione esterna alla lega interna ha senso configurare seasons e teams.</p>
             </div>
 
-            <form method="POST" action="{{ route('admin.providers.http-adapter.test', $provider->id) }}" class="mt-5 grid gap-4 md:grid-cols-2">
+            <form method="POST" class="mt-5 grid gap-4 md:grid-cols-2" data-http-adapter-form>
                 @csrf
 
                 <label class="space-y-1">
@@ -71,13 +71,18 @@
                     <span class="block text-[11px] text-slate-500">Formato: campo_interno=path_payload.</span>
                 </label>
 
-                <div class="md:col-span-2">
-                    <button class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500">Test request</button>
+                <div class="flex flex-wrap gap-3 md:col-span-2">
+                    <button formaction="{{ route('admin.providers.http-adapter.test', $provider->id) }}" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500">Test request</button>
+                    <button formaction="{{ route('admin.providers.http-adapter.save', $provider->id) }}" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">Salva mapping runtime</button>
                 </div>
             </form>
         </section>
 
         <aside class="space-y-5">
+            @if (session('status'))
+                <section class="rounded-2xl bg-emerald-400/10 p-4 text-sm text-emerald-100 shadow-lg shadow-black/10">{{ session('status') }}</section>
+            @endif
+
             <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
                 <h2 class="font-semibold text-white">Provider</h2>
                 <dl class="mt-3 space-y-2">
@@ -85,6 +90,32 @@
                     <div><dt class="text-slate-400">Base URL</dt><dd class="break-all font-mono">{{ $provider->base_url }}</dd></div>
                     <div><dt class="text-slate-400">Stato</dt><dd>{{ $provider->is_enabled ? 'Runtime attivo' : 'Runtime disattivato' }}</dd></div>
                 </dl>
+            </section>
+
+            <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
+                <h2 class="font-semibold text-white">Mapping salvati</h2>
+                <div class="mt-3 space-y-3">
+                    @forelse ($savedEndpoints as $endpoint)
+                        <div class="rounded-xl bg-slate-950/70 p-3 ring-1 ring-white/10">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <div class="font-semibold text-white">{{ $endpoint->capability }}</div>
+                                    <div class="font-mono text-xs text-slate-400">{{ $endpoint->method }} {{ $endpoint->endpoint }}</div>
+                                </div>
+                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $endpoint->is_enabled ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200' }}">
+                                    {{ $endpoint->mapping_validation_status ?? $endpoint->validation_status }}
+                                </span>
+                            </div>
+                            <dl class="mt-3 grid gap-2 text-xs">
+                                <div><dt class="text-slate-500">Items path</dt><dd class="font-mono">{{ $endpoint->items_path ?: 'root object' }}</dd></div>
+                                <div><dt class="text-slate-500">Ultimo status</dt><dd>{{ $endpoint->last_status_code ?? 'non testato' }}</dd></div>
+                                <div><dt class="text-slate-500">Campi</dt><dd class="font-mono">{{ implode(', ', array_keys($endpoint->field_mappings_decoded)) ?: 'nessuno' }}</dd></div>
+                            </dl>
+                        </div>
+                    @empty
+                        <p class="text-slate-400">Nessun mapping runtime salvato.</p>
+                    @endforelse
+                </div>
             </section>
 
             <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
