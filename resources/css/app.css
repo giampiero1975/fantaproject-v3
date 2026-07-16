@@ -68,6 +68,7 @@ body {
 .fo-app-sidebar {
     border-color: var(--fo-border);
     background: color-mix(in srgb, var(--fo-corporate) 96%, transparent);
+    overflow-x: hidden !important;
 }
 
 .fo-mobile-header {
@@ -105,8 +106,17 @@ body {
 }
 
 .fo-scrollbar {
-    scrollbar-color: rgba(123, 44, 255, 0.55) transparent;
-    scrollbar-width: thin;
+    overflow-x: hidden !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.fo-scrollbar::-webkit-scrollbar,
+.fo-app-sidebar::-webkit-scrollbar,
+.fo-app-sidebar *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 .fo-sidebar-item {
