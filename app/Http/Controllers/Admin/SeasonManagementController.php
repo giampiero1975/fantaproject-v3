@@ -18,7 +18,22 @@ final class SeasonManagementController extends Controller
             ->join('league_provider_mappings as lpm', 'lpm.league_id', '=', 'l.id')
             ->join('data_providers as p', 'p.id', '=', 'lpm.data_provider_id')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
-            ->select('l.id', 'l.name', 'p.code as provider_code', 'p.name as provider_name', 'lpm.external_id', 'lpm.external_name', 'rc.is_enabled', 'rc.role', 'rc.priority', 'rc.plan')
+            ->leftJoin('countries as c', 'c.id', '=', 'l.country_id')
+            ->select(
+                'l.id',
+                'l.name',
+                'l.country_id',
+                'c.name as country_name',
+                'p.code as provider_code',
+                'p.name as provider_name',
+                'lpm.external_id',
+                'lpm.external_name',
+                'rc.is_enabled',
+                'rc.role',
+                'rc.priority',
+                'rc.plan'
+            )
+            ->orderBy('c.name')
             ->orderBy('l.name')
             ->orderByRaw('COALESCE(rc.priority, 9999)')
             ->get()
@@ -29,13 +44,22 @@ final class SeasonManagementController extends Controller
                 return (object) [
                     'id' => $first->id,
                     'name' => $first->name,
+                    'country_id' => $first->country_id,
+                    'country_name' => $first->country_name,
                     'providers' => $rows->values(),
                 ];
             })
             ->values();
 
+        $countries = $leagues
+            ->filter(fn ($league) => $league->country_id !== null)
+            ->unique('country_id')
+            ->sortBy('country_name')
+            ->values();
+
         return view('admin.seasons.index', [
             'leagues' => $leagues,
+            'countries' => $countries,
             'historyFallback' => (int) config('seasons.history_fallback', 4),
             'lastReport' => session('season_sync_report'),
             'lastReportData' => session('season_sync_report_data'),
