@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\Providers\ProviderAdapterDefinitionRepository;
+use App\Services\Providers\ProviderConfigurationReader;
+use App\Services\Providers\ProviderConfigurationWriter;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +24,8 @@ final class ProviderManagementController extends Controller
     {
         $environment = app()->environment();
         $registeredCodes = DB::table('data_providers')->pluck('code')->all();
-        $availableAdapters = collect(config('data_provider_adapters', []))
+        $adapterDefinitions = app(ProviderAdapterDefinitionRepository::class)->installed();
+        $availableAdapters = $adapterDefinitions
             ->reject(fn (array $adapter, string $code): bool => in_array($code, $registeredCodes, true))
             ->map(fn (array $adapter, string $code): array => [
                 'code' => $code,
@@ -76,8 +80,15 @@ final class ProviderManagementController extends Controller
 
                 $provider->credentials = $credentials;
                 $provider->mappings = $mappings;
-                $provider->adapter_supported = array_key_exists($provider->code, config('data_provider_adapters', []));
+                $provider->adapter_supported = app(ProviderAdapterDefinitionRepository::class)->findInstalled($provider->code) !== null;
                 $provider->metadata_decoded = json_decode((string) $provider->metadata, true) ?: [];
+                $settings = app(ProviderConfigurationReader::class)->values((int) $provider->id);
+
+                foreach (['base_url', 'priority', 'role', 'timeout', 'connect_timeout', 'retry_times', 'retry_sleep_ms', 'plan'] as $key) {
+                    if (array_key_exists($key, $settings)) {
+                        $provider->{$key} = $settings[$key];
+                    }
+                }
 
                 return $provider;
             });
@@ -105,7 +116,7 @@ final class ProviderManagementController extends Controller
             'capabilities.*' => ['string', 'in:competitions,seasons,teams,fixtures,standings,players,statistics'],
         ]);
 
-        $adapter = config("data_provider_adapters.{$data['code']}");
+        $adapter = app(ProviderAdapterDefinitionRepository::class)->findInstalled($data['code']);
         $adapterSupported = is_array($adapter);
         $credentialKey = $data['credential_required'] ? ($data['credential_key'] ?? null) : null;
         $capabilities = array_values(array_unique($data['capabilities'] ?? []));
@@ -140,6 +151,21 @@ final class ProviderManagementController extends Controller
                 ]),
                 'created_at' => now(),
                 'updated_at' => now(),
+            ]);
+
+            app(ProviderConfigurationWriter::class)->writeMany($providerId, [
+                'base_url' => $data['base_url'],
+                'priority' => (int) $data['priority'],
+                'role' => $data['role'],
+                'plan' => $data['plan'] ?: null,
+                'timeout' => 30,
+                'connect_timeout' => 10,
+                'retry_times' => 3,
+                'retry_sleep_ms' => 500,
+                'credential_required' => (bool) $data['credential_required'],
+                'credential_key' => $credentialKey,
+                'capabilities' => $capabilities,
+                'adapter_supported' => $adapterSupported,
             ]);
 
             if ($credentialKey !== null) {
@@ -208,6 +234,17 @@ final class ProviderManagementController extends Controller
                     'updated_at' => now(),
                 ]
             );
+
+            app(ProviderConfigurationWriter::class)->writeMany($provider, [
+                'base_url' => $data['base_url'],
+                'priority' => (int) $data['priority'],
+                'role' => $data['role'],
+                'plan' => $data['plan'] ?: null,
+                'timeout' => (int) $data['timeout'],
+                'connect_timeout' => (int) $data['connect_timeout'],
+                'retry_times' => (int) $data['retry_times'],
+                'retry_sleep_ms' => (int) $data['retry_sleep_ms'],
+            ]);
         });
 
         return back()->with('status', 'Configurazione provider aggiornata.');
@@ -218,7 +255,7 @@ final class ProviderManagementController extends Controller
         $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($catalogProvider, 404);
 
-        if (! array_key_exists($catalogProvider->code, config('data_provider_adapters', []))) {
+        if (app(ProviderAdapterDefinitionRepository::class)->findInstalled($catalogProvider->code) === null) {
             return back()->withErrors([
                 'provider' => 'Impossibile attivare il provider: adapter applicativo non installato.',
             ]);
@@ -248,7 +285,7 @@ final class ProviderManagementController extends Controller
         $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($catalogProvider, 404);
 
-        $adapter = config("data_provider_adapters.{$catalogProvider->code}");
+        $adapter = app(ProviderAdapterDefinitionRepository::class)->findInstalled($catalogProvider->code);
         $runtime = DB::table('data_provider_runtime_configs')->where('data_provider_id', $provider)->first();
         $metadata = json_decode((string) ($runtime->metadata ?? ''), true) ?: [];
         $credentialKey = is_array($adapter)

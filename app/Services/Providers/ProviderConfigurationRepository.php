@@ -45,20 +45,21 @@ final class ProviderConfigurationRepository
             ->all();
 
         $metadata = json_decode((string) ($row->metadata ?? '{}'), true);
+        $settings = app(ProviderConfigurationReader::class)->values((int) $row->provider_id);
 
         return new ProviderRuntimeConfiguration(
             providerId: (int) $row->provider_id,
             code: (string) $row->code,
             name: (string) $row->name,
             enabled: (bool) $row->is_enabled,
-            priority: (int) $row->priority,
-            role: (string) $row->role,
-            baseUrl: (string) $row->base_url,
-            timeout: (int) $row->timeout,
-            connectTimeout: (int) $row->connect_timeout,
-            retryTimes: (int) $row->retry_times,
-            retrySleepMs: (int) $row->retry_sleep_ms,
-            plan: $row->plan !== null ? (string) $row->plan : null,
+            priority: (int) ($settings['priority'] ?? $row->priority),
+            role: (string) ($settings['role'] ?? $row->role),
+            baseUrl: (string) ($settings['base_url'] ?? $row->base_url),
+            timeout: (int) ($settings['timeout'] ?? $row->timeout),
+            connectTimeout: (int) ($settings['connect_timeout'] ?? $row->connect_timeout),
+            retryTimes: (int) ($settings['retry_times'] ?? $row->retry_times),
+            retrySleepMs: (int) ($settings['retry_sleep_ms'] ?? $row->retry_sleep_ms),
+            plan: ($settings['plan'] ?? $row->plan) !== null ? (string) ($settings['plan'] ?? $row->plan) : null,
             metadata: is_array($metadata) ? $metadata : [],
             credentials: $credentials,
         );

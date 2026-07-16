@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\Providers\ProviderAdapterDefinitionRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +13,7 @@ final class AvailableProviderAdaptersController extends Controller
     {
         $registeredCodes = DB::table('data_providers')->pluck('code')->all();
 
-        $adapters = collect(config('data_provider_adapters', []))
+        $adapters = app(ProviderAdapterDefinitionRepository::class)->installed()
             ->reject(fn (array $adapter, string $code): bool => in_array($code, $registeredCodes, true))
             ->map(fn (array $adapter, string $code): array => [
                 'code' => $code,

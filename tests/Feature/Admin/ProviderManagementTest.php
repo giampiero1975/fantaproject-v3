@@ -27,11 +27,7 @@ class ProviderManagementTest extends TestCase
 
     public function test_supported_provider_can_be_registered_and_activated(): void
     {
-        config()->set('data_provider_adapters.test_provider', [
-            'name' => 'Test Provider',
-            'credential_key' => 'api_token',
-            'capabilities' => ['competitions', 'seasons'],
-        ]);
+        $this->insertAdapter('test_provider', 'Test Provider', 'api_token', ['competitions', 'seasons']);
 
         $response = $this->actingAs($this->admin)->post(route('admin.providers.store'), [
             'code' => 'test_provider',
@@ -162,14 +158,6 @@ class ProviderManagementTest extends TestCase
 
     public function test_provider_management_offers_installed_adapters_to_configure_from_ui(): void
     {
-        config()->set('data_provider_adapters', [
-            'api_football' => [
-                'name' => 'API-Football',
-                'credential_key' => 'api_key',
-                'capabilities' => ['competitions', 'seasons', 'teams'],
-            ],
-        ]);
-
         $this->actingAs($this->admin)
             ->get(route('admin.providers.index'))
             ->assertOk()
@@ -300,11 +288,7 @@ class ProviderManagementTest extends TestCase
 
     public function test_credential_rotation_uses_adapter_defined_key(): void
     {
-        config()->set('data_provider_adapters.test_provider', [
-            'name' => 'Test Provider',
-            'credential_key' => 'api_token',
-            'capabilities' => ['competitions'],
-        ]);
+        $this->insertAdapter('test_provider', 'Test Provider', 'api_token', ['competitions']);
 
         $providerId = DB::table('data_providers')->insertGetId([
             'code' => 'test_provider',
@@ -340,5 +324,23 @@ class ProviderManagementTest extends TestCase
         $this->assertNotNull($credential);
         $this->assertSame('api_token', $credential->credential_key);
         $this->assertSame('rotated-secret', Crypt::decryptString($credential->encrypted_value));
+    }
+
+    /**
+     * @param  list<string>  $capabilities
+     */
+    private function insertAdapter(string $code, string $name, ?string $credentialKey, array $capabilities): void
+    {
+        DB::table('data_provider_adapter_definitions')->insert([
+            'code' => $code,
+            'name' => $name,
+            'adapter_class' => null,
+            'config_key' => null,
+            'credential_key' => $credentialKey,
+            'capabilities' => json_encode($capabilities),
+            'is_installed' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 }

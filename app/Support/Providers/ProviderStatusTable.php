@@ -2,6 +2,7 @@
 
 namespace App\Support\Providers;
 
+use App\Services\Providers\ProviderAdapterDefinitionRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +13,7 @@ final class ProviderStatusTable
      */
     public function rows(): array
     {
-        $catalog = collect(config('data_provider_adapters', []));
+        $catalog = app(ProviderAdapterDefinitionRepository::class)->installed();
         $registered = DB::table('data_providers as p')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
             ->get([

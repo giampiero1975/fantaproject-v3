@@ -12,19 +12,6 @@ final class ListProviderAdaptersCommandTest extends TestCase
 
     public function test_provider_status_lists_ready_adapter_required_and_available_to_register_states(): void
     {
-        config()->set('data_provider_adapters', [
-            'football_data' => [
-                'name' => 'football-data.org',
-                'credential_key' => 'token',
-                'capabilities' => ['competitions', 'seasons', 'teams'],
-            ],
-            'api_football' => [
-                'name' => 'API-Football',
-                'credential_key' => 'api_key',
-                'capabilities' => ['competitions', 'seasons', 'teams'],
-            ],
-        ]);
-
         $this->insertProvider(
             code: 'football_data',
             name: 'football-data.org',
@@ -77,19 +64,12 @@ final class ListProviderAdaptersCommandTest extends TestCase
 
     public function test_provider_adapters_command_remains_a_compatible_alias(): void
     {
-        config()->set('data_provider_adapters', [
-            'api_football' => [
-                'name' => 'API-Football',
-                'credential_key' => 'api_key',
-                'capabilities' => ['competitions', 'seasons', 'teams'],
-            ],
-        ]);
-
         $this->artisan('providers:adapters')
             ->expectsTable(
                 ['Code', 'Provider', 'Registered', 'Adapter installed', 'Runtime', 'State'],
                 [
                     ['api_football', 'API-Football', 'NO', 'YES', '-', 'AVAILABLE TO REGISTER'],
+                    ['football_data', 'football-data.org', 'NO', 'YES', '-', 'AVAILABLE TO REGISTER'],
                 ]
             )
             ->assertSuccessful();

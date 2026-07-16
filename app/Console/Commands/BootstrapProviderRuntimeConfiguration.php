@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Providers\ProviderConfigurationWriter;
 use Database\Seeders\DataProvidersSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Crypt;
@@ -75,6 +76,16 @@ final class BootstrapProviderRuntimeConfiguration extends Command
                         ],
                     );
                 }
+
+                app(ProviderConfigurationWriter::class)->writeMany((int) $provider->id, [
+                    'base_url' => $definition['base_url'],
+                    'timeout' => $definition['timeout'],
+                    'connect_timeout' => $definition['connect_timeout'],
+                    'retry_times' => $definition['retry_times'],
+                    'retry_sleep_ms' => $definition['retry_sleep_ms'],
+                    'priority' => $definition['priority'],
+                    'role' => $definition['role'],
+                ]);
 
                 foreach ($definition['credentials'] as $key => $value) {
                     if ($value === '') {

@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Fanta Oracle Provider Lab",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

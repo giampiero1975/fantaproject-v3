@@ -44,11 +44,11 @@ final class AvailableProviderAdaptersTest extends TestCase
 
     public function test_registered_adapters_are_not_offered_again(): void
     {
-        foreach (config('data_provider_adapters') as $code => $adapter) {
+        foreach (DB::table('data_provider_adapter_definitions')->get() as $adapter) {
             DB::table('data_providers')->insert([
-                'code' => $code,
-                'name' => $adapter['name'],
-                'base_url' => 'https://api.example.test/'.$code,
+                'code' => $adapter->code,
+                'name' => $adapter->name,
+                'base_url' => 'https://api.example.test/'.$adapter->code,
                 'active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),

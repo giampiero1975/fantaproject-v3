@@ -1,0 +1,53 @@
+meta {
+  name: TheSportsDB - competitions - Italy
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://www.thesportsdb.com/api/v1/json/3/search_all_leagues.php?c=Italy
+  body: none
+  auth: none
+}
+
+tests {
+  test("provider is reachable", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("response exposes competitions collection", function() {
+    expect(res.body).to.have.property("countries");
+    expect(res.body.countries).to.be.an("array").that.is.not.empty;
+  });
+
+  test("first competition has mapping fields", function() {
+    expect(res.body.countries[0]).to.have.property("idLeague");
+    expect(res.body.countries[0]).to.have.property("strLeague");
+  });
+}
+
+docs {
+  # Fanta Oracle mapping intent
+
+  Capability: competitions
+  Scope: country
+  Test input: Italy
+
+  This request should return the external competitions available for Italy.
+
+  Expected response collection path:
+
+  ```text
+  countries
+  ```
+
+  Candidate field mapping:
+
+  ```text
+  idLeague -> external_id
+  strLeague -> name
+  strCountry -> country
+  strSport -> sport
+  strBadge -> logo_url
+  ```
+}

@@ -201,7 +201,7 @@ Le date `start_date` e `end_date` vengono conservate anche per validare la coere
 php artisan providers:status
 ```
 
-Il comando mostra l'unione tra provider registrati nel database e adapter PHP installati in `config/data_provider_adapters.php`.
+Il comando mostra l'unione tra provider registrati nel database e adapter PHP installati registrati in `data_provider_adapter_definitions`.
 
 ```text
 Code          Registered   Adapter installed   Runtime    State

@@ -1,0 +1,12 @@
+{
+  "countries": [
+    {
+      "idLeague": "4332",
+      "strSport": "Soccer",
+      "strLeague": "Italian Serie A",
+      "strLeagueAlternate": "Serie A",
+      "strCountry": "Italy",
+      "strBadge": "https://www.thesportsdb.com/images/media/league/badge/67q3q21679951383.png"
+    }
+  ]
+}
