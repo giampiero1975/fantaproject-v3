@@ -43,6 +43,20 @@ Capability runtime
 
 Il passaggio futuro da Football-Data.org o API-Football a Sportmonks, Opta o altro provider avviene aggiungendo un adapter compatibile, senza modificare il contratto del dominio.
 
+Per i provider HTTP semplici o sperimentali, l'implementazione non deve partire da una classe PHP dedicata. La strategia prevista e' descritta in:
+
+```text
+docs/architecture/HTTP_PROVIDER_ADAPTER_UI.md
+```
+
+L'ordine corretto di configurazione e':
+
+```text
+competitions
+-> seasons
+-> teams
+```
+
 ---
 
 ## 3. Provider attuali
