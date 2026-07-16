@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Throwable;
 
@@ -62,30 +63,46 @@ final class ProviderManagementController extends Controller
 
                 $provider->credentials = $credentials;
                 $provider->mappings = $mappings;
+                $provider->adapter_supported = array_key_exists($provider->code, config('data_provider_adapters', []));
 
                 return $provider;
             });
 
-        return view('admin.providers.index', compact('providers', 'environment'));
+        $registeredCodes = $providers->pluck('code')->all();
+        $availableAdapters = collect(config('data_provider_adapters', []))
+            ->reject(fn (array $adapter, string $code) => in_array($code, $registeredCodes, true));
+
+        return view('admin.providers.index', compact('providers', 'environment', 'availableAdapters'));
     }
 
     public function store(Request $request): RedirectResponse
     {
+        $adapterCatalog = config('data_provider_adapters', []);
+
         $data = $request->validate([
-            'code' => ['required', 'string', 'max:60', 'regex:/^[a-z0-9_]+$/', 'unique:data_providers,code'],
-            'name' => ['required', 'string', 'max:120'],
+            'code' => [
+                'required',
+                'string',
+                'max:60',
+                Rule::in(array_keys($adapterCatalog)),
+                'unique:data_providers,code',
+            ],
             'base_url' => ['required', 'url', 'max:500'],
             'role' => ['required', 'in:primary,fallback,audit,statistics'],
             'priority' => ['required', 'integer', 'min:1', 'max:9999'],
             'plan' => ['nullable', 'string', 'max:100'],
-            'credential_key' => ['nullable', 'string', 'max:100', 'regex:/^[a-z0-9_]+$/'],
             'credential_value' => ['nullable', 'string', 'max:5000'],
+        ], [
+            'code.in' => 'Il provider selezionato non dispone di un adapter applicativo installato.',
         ]);
 
-        DB::transaction(function () use ($data): void {
+        $adapter = $adapterCatalog[$data['code']];
+        $credentialKey = $adapter['credential_key'] ?? null;
+
+        DB::transaction(function () use ($data, $adapter, $credentialKey): void {
             $providerId = DB::table('data_providers')->insertGetId([
                 'code' => $data['code'],
-                'name' => $data['name'],
+                'name' => $adapter['name'],
                 'base_url' => $data['base_url'],
                 'active' => true,
                 'created_at' => now(),
@@ -103,15 +120,19 @@ final class ProviderManagementController extends Controller
                 'retry_times' => 3,
                 'retry_sleep_ms' => 500,
                 'plan' => $data['plan'] ?: null,
+                'metadata' => json_encode([
+                    'capabilities' => $adapter['capabilities'] ?? [],
+                    'adapter_supported' => true,
+                ]),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            if (($data['credential_key'] ?? '') !== '' && ($data['credential_value'] ?? '') !== '') {
+            if ($credentialKey !== null && ($data['credential_value'] ?? '') !== '') {
                 DB::table('data_provider_credentials')->insert([
                     'data_provider_id' => $providerId,
                     'environment' => app()->environment(),
-                    'credential_key' => $data['credential_key'],
+                    'credential_key' => $credentialKey,
                     'encrypted_value' => Crypt::encryptString($data['credential_value']),
                     'is_active' => true,
                     'rotated_at' => now(),
@@ -121,7 +142,7 @@ final class ProviderManagementController extends Controller
             }
         });
 
-        return back()->with('status', 'Provider aggiunto correttamente. Il relativo adapter applicativo va registrato prima dell’uso runtime.');
+        return back()->with('status', 'Provider supportato registrato e inserito nel runtime.');
     }
 
     public function update(Request $request, int $provider): RedirectResponse
@@ -167,6 +188,15 @@ final class ProviderManagementController extends Controller
 
     public function toggle(int $provider): RedirectResponse
     {
+        $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($catalogProvider, 404);
+
+        if (! array_key_exists($catalogProvider->code, config('data_provider_adapters', []))) {
+            return back()->withErrors([
+                'provider' => 'Impossibile attivare il provider: adapter applicativo non installato.',
+            ]);
+        }
+
         $runtime = DB::table('data_provider_runtime_configs')->where('data_provider_id', $provider)->first();
         abort_unless($runtime, 404);
 
