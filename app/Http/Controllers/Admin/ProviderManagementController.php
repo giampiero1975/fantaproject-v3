@@ -80,6 +80,9 @@ final class ProviderManagementController extends Controller
 
                 $provider->credentials = $credentials;
                 $provider->mappings = $mappings;
+                $provider->http_mappings_count = DB::table('data_provider_http_endpoints')
+                    ->where('data_provider_id', $provider->id)
+                    ->count();
                 $provider->adapter_supported = app(ProviderAdapterDefinitionRepository::class)->findInstalled($provider->code) !== null;
                 $provider->metadata_decoded = json_decode((string) $provider->metadata, true) ?: [];
                 $settings = app(ProviderConfigurationReader::class)->values((int) $provider->id);

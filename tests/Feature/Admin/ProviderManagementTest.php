@@ -353,6 +353,51 @@ class ProviderManagementTest extends TestCase
             ->assertDontSee('c=Italy');
     }
 
+    public function test_provider_management_distinguishes_league_mappings_from_http_mappings(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+            'priority' => 10,
+            'role' => 'primary',
+            'base_url' => 'https://api.football-data.org/v4',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_http_endpoints')->insert([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'method' => 'GET',
+            'endpoint' => 'competitions',
+            'items_path' => 'competitions',
+            'is_enabled' => true,
+            'validation_status' => 'saved_not_tested',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.index'))
+            ->assertOk()
+            ->assertSee('Mapping leghe:')
+            ->assertSee('HTTP mapping:')
+            ->assertDontSee('Mapping: 0');
+    }
+
     public function test_provider_without_adapter_cannot_be_activated(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

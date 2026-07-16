@@ -53,7 +53,8 @@
                         <span>Ruolo: <strong class="text-slate-200">{{ ucfirst($provider->role ?? 'non configurato') }}</strong></span>
                         <span>Priorità: <strong class="text-slate-200">{{ $provider->priority ?? '—' }}</strong></span>
                         <span>Piano: <strong class="text-slate-200">{{ $provider->plan ?: 'non indicato' }}</strong></span>
-                        <span>Mapping: <strong class="text-slate-200">{{ $provider->mappings->count() }}</strong></span>
+                        <span>Mapping leghe: <strong class="text-slate-200">{{ $provider->mappings->count() }}</strong></span>
+                        <span>HTTP mapping: <strong class="text-slate-200">{{ $provider->http_mappings_count }}</strong></span>
                         <span>Adapter: <strong class="text-slate-200">{{ $provider->adapter_supported ? 'installato' : 'richiesto' }}</strong></span>
                     </x-slot:meta>
 
@@ -67,7 +68,7 @@
                                     {{ $runtimeReady ? 'Il sistema può utilizzare questo provider nelle procedure compatibili.' : 'Il provider è escluso dalle nuove chiamate runtime.' }}
                                 @endif
                             </p>
-                            <p class="mt-3 text-xs font-medium">Mapping disponibili: {{ $provider->mappings->count() }}</p>
+                            <p class="mt-3 text-xs font-medium">Mapping leghe: {{ $provider->mappings->count() }} · HTTP mapping: {{ $provider->http_mappings_count }}</p>
                         </div>
 
                         <div class="rounded-xl bg-amber-50 p-4 text-amber-950 ring-1 ring-amber-200">
