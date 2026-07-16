@@ -12,4 +12,10 @@ return [
         'credential_key' => 'api_key',
         'capabilities' => ['competitions', 'seasons', 'teams'],
     ],
+
+    'thesportsdb' => [
+        'name' => 'TheSportsDB',
+        'credential_key' => null,
+        'capabilities' => ['competitions', 'seasons', 'teams'],
+    ],
 ];
