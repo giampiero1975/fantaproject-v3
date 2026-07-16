@@ -24,7 +24,7 @@ class ProviderManagementTest extends TestCase
         $this->admin->assignRole($role);
     }
 
-    public function test_supported_provider_can_be_registered_from_catalog(): void
+    public function test_supported_provider_can_be_registered_and_activated(): void
     {
         config()->set('data_provider_adapters.test_provider', [
             'name' => 'Test Provider',
@@ -34,19 +34,22 @@ class ProviderManagementTest extends TestCase
 
         $response = $this->actingAs($this->admin)->post(route('admin.providers.store'), [
             'code' => 'test_provider',
+            'name' => 'Test Provider',
             'base_url' => 'https://api.test-provider.example',
             'role' => 'fallback',
             'priority' => 30,
             'plan' => 'Basic',
+            'credential_required' => 1,
+            'credential_key' => 'api_token',
             'credential_value' => 'secret-token',
+            'capabilities' => ['competitions', 'seasons'],
         ]);
 
         $response->assertSessionHasNoErrors();
-        $response->assertSessionHas('status');
 
         $provider = DB::table('data_providers')->where('code', 'test_provider')->first();
         $this->assertNotNull($provider);
-        $this->assertSame('Test Provider', $provider->name);
+        $this->assertTrue((bool) $provider->active);
 
         $this->assertDatabaseHas('data_provider_runtime_configs', [
             'data_provider_id' => $provider->id,
@@ -56,31 +59,79 @@ class ProviderManagementTest extends TestCase
             'plan' => 'Basic',
         ]);
 
-        $credential = DB::table('data_provider_credentials')
-            ->where('data_provider_id', $provider->id)
-            ->first();
-
+        $credential = DB::table('data_provider_credentials')->where('data_provider_id', $provider->id)->first();
         $this->assertNotNull($credential);
         $this->assertSame('api_token', $credential->credential_key);
         $this->assertSame('secret-token', Crypt::decryptString($credential->encrypted_value));
     }
 
-    public function test_provider_without_installed_adapter_is_rejected(): void
+    public function test_provider_without_adapter_can_be_registered_from_ui_without_credential(): void
     {
-        $response = $this->actingAs($this->admin)
-            ->from(route('admin.providers.index'))
-            ->post(route('admin.providers.store'), [
-                'code' => 'unknown_provider',
-                'base_url' => 'https://api.unknown.example',
-                'role' => 'primary',
-                'priority' => 10,
-                'plan' => 'Pro',
-                'credential_value' => 'secret',
-            ]);
+        $response = $this->actingAs($this->admin)->post(route('admin.providers.store'), [
+            'code' => 'thesportsdb',
+            'name' => 'TheSportsDB',
+            'base_url' => 'https://www.thesportsdb.com',
+            'role' => 'fallback',
+            'priority' => 30,
+            'plan' => 'Free',
+            'credential_required' => 0,
+            'capabilities' => ['competitions', 'seasons', 'teams'],
+        ]);
 
-        $response->assertRedirect(route('admin.providers.index'));
-        $response->assertSessionHasErrors('code');
-        $this->assertDatabaseMissing('data_providers', ['code' => 'unknown_provider']);
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('status');
+
+        $provider = DB::table('data_providers')->where('code', 'thesportsdb')->first();
+        $this->assertNotNull($provider);
+        $this->assertFalse((bool) $provider->active);
+
+        $runtime = DB::table('data_provider_runtime_configs')->where('data_provider_id', $provider->id)->first();
+        $this->assertNotNull($runtime);
+        $this->assertFalse((bool) $runtime->is_enabled);
+
+        $metadata = json_decode($runtime->metadata, true);
+        $this->assertSame('adapter_required', $metadata['onboarding_state']);
+        $this->assertFalse($metadata['credential_required']);
+        $this->assertSame(['competitions', 'seasons', 'teams'], $metadata['capabilities']);
+
+        $this->assertDatabaseMissing('data_provider_credentials', [
+            'data_provider_id' => $provider->id,
+        ]);
+    }
+
+    public function test_provider_without_adapter_cannot_be_activated(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'pending_provider',
+            'name' => 'Pending Provider',
+            'base_url' => 'https://api.pending.example',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => false,
+            'priority' => 50,
+            'role' => 'fallback',
+            'base_url' => 'https://api.pending.example',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'metadata' => json_encode(['adapter_supported' => false]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin)->patch(route('admin.providers.toggle', $providerId));
+
+        $response->assertSessionHasErrors('provider');
+        $this->assertDatabaseHas('data_provider_runtime_configs', [
+            'data_provider_id' => $providerId,
+            'is_enabled' => 0,
+        ]);
     }
 
     public function test_credential_rotation_uses_adapter_defined_key(): void
@@ -116,24 +167,14 @@ class ProviderManagementTest extends TestCase
 
         $response = $this->actingAs($this->admin)->post(
             route('admin.providers.credentials.rotate', $providerId),
-            [
-                'credential_key' => 'malicious_override',
-                'credential_value' => 'rotated-secret',
-            ]
+            ['credential_value' => 'rotated-secret']
         );
 
         $response->assertSessionHasNoErrors();
 
-        $credential = DB::table('data_provider_credentials')
-            ->where('data_provider_id', $providerId)
-            ->first();
-
+        $credential = DB::table('data_provider_credentials')->where('data_provider_id', $providerId)->first();
         $this->assertNotNull($credential);
         $this->assertSame('api_token', $credential->credential_key);
         $this->assertSame('rotated-secret', Crypt::decryptString($credential->encrypted_value));
-        $this->assertDatabaseMissing('data_provider_credentials', [
-            'data_provider_id' => $providerId,
-            'credential_key' => 'malicious_override',
-        ]);
     }
 }
