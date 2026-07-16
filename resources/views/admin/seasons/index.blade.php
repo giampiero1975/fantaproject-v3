@@ -29,26 +29,8 @@
 
         <div class="grid gap-6 xl:grid-cols-3">
             <section class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 xl:col-span-2">
-                <div class="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <h2 class="text-lg font-semibold text-white">Analizza timeline</h2>
-                        <p class="mt-1 text-sm text-slate-400">Nessun codice SA/SB o ID 135/136 da digitare: vengono risolti dal registry.</p>
-                    </div>
-                    <details class="relative">
-                        <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-white/[0.05] text-slate-300 ring-1 ring-white/10 hover:bg-white/[0.09] [&::-webkit-details-marker]:hidden" title="Filtra per nazione" aria-label="Filtra competizioni per nazione">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4.5h18l-7 8v5.25l-4 1.75v-7L3 4.5Z" /></svg>
-                        </summary>
-                        <div class="absolute right-0 z-20 mt-2 w-64 rounded-xl bg-slate-900 p-3 shadow-xl ring-1 ring-white/10">
-                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-400">Nazione</label>
-                            <select data-season-country-filter class="mt-2 w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-white ring-1 ring-white/10">
-                                <option value="">Tutte le nazioni</option>
-                                @foreach($countries as $country)
-                                    <option value="{{ $country->country_id }}">{{ $country->country_name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </details>
-                </div>
+                <h2 class="text-lg font-semibold text-white">Analizza timeline</h2>
+                <p class="mt-1 text-sm text-slate-400">Nessun codice SA/SB o ID 135/136 da digitare: vengono risolti dal registry.</p>
 
                 <form method="POST" action="{{ route('admin.seasons.analyze') }}" class="mt-5 grid gap-4 md:grid-cols-3">
                     @csrf
@@ -83,8 +65,26 @@
         </div>
 
         <section class="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 class="text-lg font-semibold text-white">Registry competizioni e provider</h2>
-            <p class="mt-1 text-sm text-slate-400">Questi valori sono informativi e provengono dal database. Il filtro nazione applicato sopra agisce anche su questa tabella.</p>
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">Registry competizioni e provider</h2>
+                    <p class="mt-1 text-sm text-slate-400">Questi valori sono informativi e provengono dal database.</p>
+                </div>
+                <details class="relative">
+                    <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-white/[0.05] text-slate-300 ring-1 ring-white/10 hover:bg-white/[0.09] [&::-webkit-details-marker]:hidden" title="Filtra per nazione" aria-label="Filtra competizioni per nazione">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4.5h18l-7 8v5.25l-4 1.75v-7L3 4.5Z" /></svg>
+                    </summary>
+                    <div class="absolute right-0 z-20 mt-2 w-64 rounded-xl bg-slate-900 p-3 shadow-xl ring-1 ring-white/10">
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-400">Nazione</label>
+                        <select data-season-country-filter class="mt-2 w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-white ring-1 ring-white/10">
+                            <option value="">Tutte le nazioni</option>
+                            @foreach($countries as $country)
+                                <option value="{{ $country->country_id }}">{{ $country->country_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </details>
+            </div>
             <div class="mt-4 overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead class="text-slate-500"><tr><th class="pb-3">Nazione</th><th class="pb-3">Competizione</th><th class="pb-3">Provider</th><th class="pb-3">Mapping</th><th class="pb-3">Ruolo</th><th class="pb-3">Stato</th><th class="pb-3">Piano</th></tr></thead>
