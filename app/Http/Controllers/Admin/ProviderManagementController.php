@@ -7,7 +7,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Throwable;
 
@@ -63,54 +62,48 @@ final class ProviderManagementController extends Controller
                 $provider->credentials = $credentials;
                 $provider->mappings = $mappings;
                 $provider->adapter_supported = array_key_exists($provider->code, config('data_provider_adapters', []));
+                $provider->metadata_decoded = json_decode((string) $provider->metadata, true) ?: [];
 
                 return $provider;
             });
 
-        $registeredCodes = $providers->pluck('code')->all();
-        $availableAdapters = collect(config('data_provider_adapters', []))
-            ->reject(fn (array $adapter, string $code) => in_array($code, $registeredCodes, true));
-
-        return view('admin.providers.index', compact('providers', 'environment', 'availableAdapters'));
+        return view('admin.providers.index', compact('providers', 'environment'));
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $adapterCatalog = config('data_provider_adapters', []);
-
         $data = $request->validate([
-            'code' => [
-                'required',
-                'string',
-                'max:60',
-                Rule::in(array_keys($adapterCatalog)),
-                'unique:data_providers,code',
-            ],
+            'code' => ['required', 'string', 'max:60', 'regex:/^[a-z0-9_]+$/', 'unique:data_providers,code'],
+            'name' => ['required', 'string', 'max:120'],
             'base_url' => ['required', 'url', 'max:500'],
             'role' => ['required', 'in:primary,fallback,audit,statistics'],
             'priority' => ['required', 'integer', 'min:1', 'max:9999'],
             'plan' => ['nullable', 'string', 'max:100'],
-            'credential_value' => ['nullable', 'string', 'max:5000'],
-        ], [
-            'code.in' => 'Il provider selezionato non dispone di un adapter applicativo installato.',
+            'credential_required' => ['required', 'boolean'],
+            'credential_key' => ['nullable', 'string', 'max:120', 'required_if:credential_required,1'],
+            'credential_value' => ['nullable', 'string', 'max:5000', 'required_if:credential_required,1'],
+            'capabilities' => ['nullable', 'array'],
+            'capabilities.*' => ['string', 'in:competitions,seasons,teams,fixtures,standings,players,statistics'],
         ]);
 
-        $adapter = $adapterCatalog[$data['code']];
-        $credentialKey = $adapter['credential_key'] ?? null;
+        $adapter = config("data_provider_adapters.{$data['code']}");
+        $adapterSupported = is_array($adapter);
+        $credentialKey = $data['credential_required'] ? ($data['credential_key'] ?? null) : null;
+        $capabilities = array_values(array_unique($data['capabilities'] ?? []));
 
-        DB::transaction(function () use ($data, $adapter, $credentialKey): void {
+        DB::transaction(function () use ($data, $adapterSupported, $credentialKey, $capabilities): void {
             $providerId = DB::table('data_providers')->insertGetId([
                 'code' => $data['code'],
-                'name' => $adapter['name'],
+                'name' => $data['name'],
                 'base_url' => $data['base_url'],
-                'active' => true,
+                'active' => $adapterSupported,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
             DB::table('data_provider_runtime_configs')->insert([
                 'data_provider_id' => $providerId,
-                'is_enabled' => true,
+                'is_enabled' => $adapterSupported,
                 'priority' => $data['priority'],
                 'role' => $data['role'],
                 'base_url' => $data['base_url'],
@@ -120,14 +113,17 @@ final class ProviderManagementController extends Controller
                 'retry_sleep_ms' => 500,
                 'plan' => $data['plan'] ?: null,
                 'metadata' => json_encode([
-                    'capabilities' => $adapter['capabilities'] ?? [],
-                    'adapter_supported' => true,
+                    'capabilities' => $capabilities,
+                    'credential_required' => (bool) $data['credential_required'],
+                    'credential_key' => $credentialKey,
+                    'adapter_supported' => $adapterSupported,
+                    'onboarding_state' => $adapterSupported ? 'ready' : 'adapter_required',
                 ]),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            if ($credentialKey !== null && ($data['credential_value'] ?? '') !== '') {
+            if ($credentialKey !== null) {
                 DB::table('data_provider_credentials')->insert([
                     'data_provider_id' => $providerId,
                     'environment' => app()->environment(),
@@ -141,7 +137,12 @@ final class ProviderManagementController extends Controller
             }
         });
 
-        return back()->with('status', 'Provider supportato registrato e inserito nel runtime.');
+        return back()->with(
+            'status',
+            $adapterSupported
+                ? 'Provider registrato e attivato nel runtime.'
+                : 'Provider registrato. Rimane disattivato finché non viene installato il relativo adapter applicativo.'
+        );
     }
 
     public function update(Request $request, int $provider): RedirectResponse
@@ -221,9 +222,15 @@ final class ProviderManagementController extends Controller
         abort_unless($catalogProvider, 404);
 
         $adapter = config("data_provider_adapters.{$catalogProvider->code}");
-        if (! is_array($adapter) || empty($adapter['credential_key'])) {
+        $runtime = DB::table('data_provider_runtime_configs')->where('data_provider_id', $provider)->first();
+        $metadata = json_decode((string) ($runtime->metadata ?? ''), true) ?: [];
+        $credentialKey = is_array($adapter)
+            ? ($adapter['credential_key'] ?? null)
+            : ($metadata['credential_key'] ?? null);
+
+        if (empty($credentialKey)) {
             return back()->withErrors([
-                'provider' => 'Impossibile ruotare la credenziale: adapter o nome credenziale non configurato.',
+                'provider' => 'Questo provider non richiede una credenziale oppure il nome tecnico non è configurato.',
             ]);
         }
 
@@ -235,7 +242,7 @@ final class ProviderManagementController extends Controller
             [
                 'data_provider_id' => $provider,
                 'environment' => app()->environment(),
-                'credential_key' => $adapter['credential_key'],
+                'credential_key' => $credentialKey,
             ],
             [
                 'encrypted_value' => Crypt::encryptString($data['credential_value']),
