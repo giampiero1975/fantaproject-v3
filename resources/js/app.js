@@ -16,6 +16,7 @@ const initializeProviderOnboarding = () => {
     const credentialKeyInput = form.querySelector('input[name="credential_key"]');
     const credentialValueInput = form.querySelector('input[name="credential_value"]');
     const codeInput = form.querySelector('input[name="code"]');
+    const installedAdapterSelect = form.querySelector('[data-installed-adapter]');
     const credentialKeyLabel = credentialKeyInput?.closest('label');
     const credentialValueLabel = credentialValueInput?.closest('label');
 
@@ -64,6 +65,31 @@ const initializeProviderOnboarding = () => {
 
     credentialRequired.addEventListener('change', syncCredentialFields);
     syncCredentialFields();
+
+    installedAdapterSelect?.addEventListener('change', () => {
+        const option = installedAdapterSelect.selectedOptions[0];
+
+        if (!option?.dataset.code) {
+            return;
+        }
+
+        codeInput.value = option.dataset.code;
+        form.querySelector('input[name="name"]').value = option.dataset.name || option.dataset.code;
+        credentialKeyInput.value = option.dataset.credentialKey || '';
+        credentialRequired.value = option.dataset.credentialKey ? '1' : '0';
+        syncCredentialFields();
+
+        let capabilities = [];
+        try {
+            capabilities = JSON.parse(option.dataset.capabilities || '[]');
+        } catch {
+            capabilities = [];
+        }
+
+        form.querySelectorAll('input[name="capabilities[]"]').forEach((checkbox) => {
+            checkbox.checked = capabilities.includes(checkbox.value);
+        });
+    });
 
     codeInput?.addEventListener('blur', () => {
         codeInput.value = codeInput.value

@@ -15,6 +15,16 @@ final class ProviderManagementController extends Controller
     public function index(): View
     {
         $environment = app()->environment();
+        $registeredCodes = DB::table('data_providers')->pluck('code')->all();
+        $availableAdapters = collect(config('data_provider_adapters', []))
+            ->reject(fn (array $adapter, string $code): bool => in_array($code, $registeredCodes, true))
+            ->map(fn (array $adapter, string $code): array => [
+                'code' => $code,
+                'name' => $adapter['name'] ?? $code,
+                'credential_key' => $adapter['credential_key'] ?? null,
+                'capabilities' => array_values($adapter['capabilities'] ?? []),
+            ])
+            ->values();
 
         $providers = DB::table('data_providers as p')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
@@ -67,7 +77,7 @@ final class ProviderManagementController extends Controller
                 return $provider;
             });
 
-        return view('admin.providers.index', compact('providers', 'environment'));
+        return view('admin.providers.index', compact('providers', 'environment', 'availableAdapters'));
     }
 
     public function store(Request $request): RedirectResponse

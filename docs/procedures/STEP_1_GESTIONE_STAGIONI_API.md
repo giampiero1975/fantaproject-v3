@@ -263,6 +263,15 @@ La pagina `Administration -> Provider Management` distingue esplicitamente:
 - `Adapter richiesto`: il provider e' configurato nel DB, ma manca l'adapter applicativo;
 - `Attivo`: adapter installato e runtime abilitato.
 
+Nel form `Aggiungi provider` e' possibile selezionare un adapter PHP gia' installato. La UI compila automaticamente:
+
+- codice provider;
+- nome visualizzato;
+- nome tecnico della credenziale;
+- capabilities dichiarate dall'adapter.
+
+Se l'adapter non esiste ancora, il provider puo' comunque essere registrato manualmente e rimane in stato `ADAPTER REQUIRED`.
+
 I provider DB-only non sono attivabili dalla UI: il bottone resta disabilitato finche' non viene installato l'adapter PHP.
 
 ### Analizza senza scrivere

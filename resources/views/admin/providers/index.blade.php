@@ -225,6 +225,24 @@
 
                 <form method="POST" action="{{ route('admin.providers.store') }}" class="grid gap-4 md:grid-cols-4">
                     @csrf
+                    <div class="space-y-1 md:col-span-4">
+                        <label class="text-xs font-medium text-slate-700">Adapter installato disponibile</label>
+                        <select data-installed-adapter class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                            <option value="">Configurazione manuale o adapter non ancora installato</option>
+                            @foreach ($availableAdapters as $adapter)
+                                <option
+                                    value="{{ $adapter['code'] }}"
+                                    data-code="{{ $adapter['code'] }}"
+                                    data-name="{{ $adapter['name'] }}"
+                                    data-credential-key="{{ $adapter['credential_key'] }}"
+                                    data-capabilities='@json($adapter['capabilities'])'
+                                >
+                                    {{ $adapter['name'] }} · {{ $adapter['code'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <span class="block text-[11px] text-slate-500">Seleziona un adapter PHP gia' installato per compilare automaticamente codice, nome tecnico, credenziale e capabilities.</span>
+                    </div>
                     <label class="space-y-1"><span class="text-xs font-medium text-slate-700">Codice provider</span><input name="code" placeholder="es. thesportsdb" autocomplete="off" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300" required><span class="block text-[11px] text-slate-500">Puoi scrivere anche TheSportsDB: verrà salvato come codice tecnico minuscolo.</span></label>
                     <label class="space-y-1"><span class="text-xs font-medium text-slate-700">Nome visualizzato</span><input name="name" placeholder="es. Sportmonks" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300" required></label>
                     <label class="space-y-1 md:col-span-2"><span class="text-xs font-medium text-slate-700">Base URL API</span><input name="base_url" placeholder="https://api.example.com" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300" required></label>

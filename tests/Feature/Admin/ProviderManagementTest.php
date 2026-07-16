@@ -159,6 +159,26 @@ class ProviderManagementTest extends TestCase
             ->assertSee('Installa adapter per attivare');
     }
 
+    public function test_provider_management_offers_installed_adapters_to_configure_from_ui(): void
+    {
+        config()->set('data_provider_adapters', [
+            'api_football' => [
+                'name' => 'API-Football',
+                'credential_key' => 'api_key',
+                'capabilities' => ['competitions', 'seasons', 'teams'],
+            ],
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.index'))
+            ->assertOk()
+            ->assertSee('Adapter installato disponibile')
+            ->assertSee('API-Football')
+            ->assertSee('data-installed-adapter', false)
+            ->assertSee('data-code="api_football"', false)
+            ->assertSee('data-credential-key="api_key"', false);
+    }
+
     public function test_provider_without_adapter_cannot_be_activated(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
