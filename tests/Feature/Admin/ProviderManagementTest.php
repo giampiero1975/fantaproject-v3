@@ -216,7 +216,7 @@ class ProviderManagementTest extends TestCase
 
         DB::table('data_provider_contract_fields')
             ->where('capability', 'competitions')
-            ->where('field_key', 'provider_competition_key')
+            ->where('field_key', 'provider_competition_code')
             ->update([
                 'label' => 'Chiave competizione provider',
                 'description' => 'Descrizione modificata da tabella contratto.',
@@ -289,7 +289,7 @@ class ProviderManagementTest extends TestCase
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
                 'items_path' => 'leagues',
-                'field_mappings' => "provider_competition_key=idLeague\ncompetition_name=strLeague\ncountry_name=strCountry",
+                'field_mappings' => "provider_competition_code=idLeague\ncompetition_name=strLeague\ncountry_name=strCountry",
             ]);
 
         $response->assertRedirect();
@@ -300,7 +300,7 @@ class ProviderManagementTest extends TestCase
         $this->assertSame(200, $result['status']);
         $this->assertSame(1, $result['items_count']);
         $this->assertSame([
-            'provider_competition_key' => '4332',
+            'provider_competition_code' => '4332',
             'competition_name' => 'Italian Serie A',
             'country_name' => 'Italy',
         ], $result['normalized_preview']);
@@ -351,7 +351,7 @@ class ProviderManagementTest extends TestCase
                 'endpoint' => 'competitions',
                 'query_params' => '',
                 'items_path' => 'competitions',
-                'field_mappings' => "provider_competition_key=code\ncompetition_name=name\ncountry_name=area.name",
+                'field_mappings' => "provider_competition_code=code\ncompetition_name=name\ncountry_name=area.name",
             ])
             ->assertRedirect();
 
@@ -399,7 +399,7 @@ class ProviderManagementTest extends TestCase
                 'endpoint' => 'leagues',
                 'query_params' => 'id=135',
                 'items_path' => 'response',
-                'field_mappings' => "provider_competition_key=league.id\ncompetition_name=league.name\ncountry_name=country.name",
+                'field_mappings' => "provider_competition_code=league.id\ncompetition_name=league.name\ncountry_name=country.name",
             ])
             ->assertRedirect();
 
@@ -425,7 +425,7 @@ class ProviderManagementTest extends TestCase
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
                 'items_path' => 'countries',
-                'field_mappings' => "provider_competition_key=idLeague\ncompetition_name=strLeague\ncountry_name=strCountry",
+                'field_mappings' => "provider_competition_code=idLeague\ncompetition_name=strLeague\ncountry_name=strCountry",
             ]);
 
         $response->assertRedirect();
@@ -452,10 +452,40 @@ class ProviderManagementTest extends TestCase
         $this->assertNotNull($mapping);
         $this->assertSame('mapping_validated', $mapping->validation_status);
         $this->assertSame([
-            'provider_competition_key' => 'idLeague',
+            'provider_competition_code' => 'idLeague',
             'competition_name' => 'strLeague',
             'country_name' => 'strCountry',
         ], json_decode($mapping->field_mappings, true));
+    }
+
+    public function test_http_adapter_mapping_rejects_fields_missing_from_contract(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'list',
+                'method' => 'GET',
+                'endpoint' => 'competitions',
+                'query_params' => '',
+                'items_path' => 'competitions',
+                'field_mappings' => "provider_competition_code=code\nfield_typo=name\ncompetition_name=name\ncountry_name=area.name",
+            ]);
+
+        $response->assertSessionHasErrors('field_mappings');
+        $this->assertDatabaseMissing('data_provider_http_endpoints', [
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'list',
+        ]);
     }
 
     public function test_http_adapter_allows_multiple_operations_for_same_capability(): void
@@ -473,7 +503,7 @@ class ProviderManagementTest extends TestCase
             'capability' => 'competitions',
             'method' => 'GET',
             'query_params' => '',
-            'field_mappings' => "provider_competition_key=code\nprovider_competition_id=id\nprovider_area_id=area.id\ncompetition_name=name\ncountry_name=area.name",
+            'field_mappings' => "provider_competition_code=code\nprovider_competition_id=id\nprovider_area_id=area.id\ncompetition_name=name\ncountry_name=area.name",
         ];
 
         $this->actingAs($this->admin)
@@ -543,16 +573,16 @@ class ProviderManagementTest extends TestCase
         DB::table('data_provider_payload_mappings')->insert([
             'data_provider_http_endpoint_id' => $endpointId,
             'field_mappings' => json_encode([
-                'provider_competition_key' => 'code',
+                'provider_competition_code' => 'code',
                 'provider_competition_id' => 'id',
                 'provider_area_id' => 'area.id',
                 'competition_name' => 'name',
                 'country_name' => 'area.name',
                 'country_code' => 'area.code',
                 'competition_type' => 'type',
-                'logo_url' => 'emblem',
+                'competition_logo_url' => 'emblem',
             ]),
-            'required_fields' => json_encode(['provider_competition_key', 'competition_name', 'country_name']),
+            'required_fields' => json_encode(['provider_competition_code', 'competition_name', 'country_name']),
             'validation_status' => 'mapping_validated',
             'created_at' => now(),
             'updated_at' => now(),
@@ -562,9 +592,9 @@ class ProviderManagementTest extends TestCase
             ->get(route('admin.providers.http-adapter.configure', $providerId))
             ->assertOk()
             ->assertSee('value="competitions"', false)
-            ->assertSee('provider_competition_key=code')
+            ->assertSee('provider_competition_code=code')
             ->assertSee('country_name=area.name')
-            ->assertDontSee('provider_competition_key=idLeague')
+            ->assertDontSee('provider_competition_code=idLeague')
             ->assertDontSee('c=Italy');
     }
 

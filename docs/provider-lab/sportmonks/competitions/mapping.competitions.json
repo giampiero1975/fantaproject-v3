@@ -19,17 +19,17 @@
     "items_path": null
   },
   "field_mappings": {
-    "provider_competition_key": null,
+    "provider_competition_code": null,
     "provider_competition_id": null,
     "provider_area_id": null,
     "competition_name": null,
     "country_name": null,
     "country_code": null,
     "competition_type": null,
-    "logo_url": null
+    "competition_logo_url": null
   },
   "required_internal_fields": [
-    "provider_competition_key",
+    "provider_competition_code",
     "competition_name",
     "country_name"
   ],
@@ -38,7 +38,7 @@
     "Quale endpoint SportMonks useremo per la discovery competizioni?",
     "Quale scope iniziale e' corretto: country, league search o lista completa?",
     "Quale items_path restituisce la lista competizioni?",
-    "Quali campi payload mappano provider_competition_key, competition_name e country_name?"
+    "Quali campi payload mappano provider_competition_code, competition_name e country_name?"
   ],
   "runtime_status": {
     "reachable": false,

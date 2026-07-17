@@ -500,6 +500,15 @@ final class ProviderManagementController extends Controller
         $url = $this->buildProviderUrl((string) $providerRow->base_url, $data['endpoint']);
         $query = $this->parseKeyValueLines($data['query_params'] ?? '');
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
+        $unknownFields = $this->unknownContractFields($data['capability'], $fieldMappings);
+
+        if ($unknownFields !== []) {
+            return back()
+                ->withErrors([
+                    'field_mappings' => 'Campi non presenti nel contratto: '.implode(', ', $unknownFields).'. Aggiungili prima a Campi interni oppure correggi il mapping.',
+                ])
+                ->withInput();
+        }
 
         $this->providerLog('http_adapter_test', 'debug', 'HTTP adapter test input parsed.', [
             'provider_id' => $provider,
@@ -589,6 +598,24 @@ final class ProviderManagementController extends Controller
         $data = $this->validateHttpAdapterInput($request);
         $query = $this->parseKeyValueLines($data['query_params'] ?? '');
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
+        $unknownFields = $this->unknownContractFields($data['capability'], $fieldMappings);
+
+        if ($unknownFields !== []) {
+            $this->providerLog('http_adapter_mapping', 'warning', 'HTTP adapter mapping save blocked: unknown contract fields.', [
+                'provider_id' => $provider,
+                'provider_code' => $providerRow->code,
+                'capability' => $data['capability'],
+                'operation' => $data['operation'],
+                'unknown_fields' => $unknownFields,
+            ]);
+
+            return back()
+                ->withErrors([
+                    'field_mappings' => 'Campi non presenti nel contratto: '.implode(', ', $unknownFields).'. Aggiungili prima a Campi interni oppure correggi il mapping.',
+                ])
+                ->withInput();
+        }
+
         $requiredFields = $this->requiredFieldsFor($data['capability']);
         $mappingStatus = $this->mappingStatus($fieldMappings, $requiredFields);
         $testResult = session('http_adapter_test_result');
@@ -792,14 +819,14 @@ final class ProviderManagementController extends Controller
                 'body_template' => '',
                 'items_path' => 'competitions',
                 'field_mappings' => implode("\n", [
-                    'provider_competition_key=code',
+                    'provider_competition_code=code',
                     'provider_competition_id=id',
                     'provider_area_id=area.id',
                     'competition_name=name',
                     'country_name=area.name',
                     'country_code=area.code',
                     'competition_type=type',
-                    'logo_url=emblem',
+                    'competition_logo_url=emblem',
                 ]),
             ],
             'api_football' => [
@@ -811,13 +838,13 @@ final class ProviderManagementController extends Controller
                 'body_template' => '',
                 'items_path' => 'response',
                 'field_mappings' => implode("\n", [
-                    'provider_competition_key=league.id',
+                    'provider_competition_code=league.id',
                     'provider_competition_id=league.id',
                     'competition_name=league.name',
                     'country_name=country.name',
                     'country_code=country.code',
                     'competition_type=league.type',
-                    'logo_url=league.logo',
+                    'competition_logo_url=league.logo',
                 ]),
             ],
             'thesportsdb' => [
@@ -829,11 +856,11 @@ final class ProviderManagementController extends Controller
                 'body_template' => '',
                 'items_path' => 'countries',
                 'field_mappings' => implode("\n", [
-                    'provider_competition_key=idLeague',
+                    'provider_competition_code=idLeague',
                     'competition_name=strLeague',
                     'country_name=strCountry',
                     'competition_type=strSport',
-                    'logo_url=strBadge',
+                    'competition_logo_url=strBadge',
                 ]),
             ],
             default => [
@@ -845,7 +872,7 @@ final class ProviderManagementController extends Controller
                 'body_template' => '',
                 'items_path' => '',
                 'field_mappings' => implode("\n", [
-                    'provider_competition_key=',
+                    'provider_competition_code=',
                     'competition_name=',
                     'country_name=',
                 ]),
@@ -901,6 +928,19 @@ final class ProviderManagementController extends Controller
         }
 
         return 'mapping_validated';
+    }
+
+    /**
+     * @param  array<string, string>  $fieldMappings
+     * @return list<string>
+     */
+    private function unknownContractFields(string $capability, array $fieldMappings): array
+    {
+        $allowedFields = $this->contractFieldsFor($capability)
+            ->pluck('field_key')
+            ->all();
+
+        return array_values(array_diff(array_keys($fieldMappings), $allowedFields));
     }
 
     /**

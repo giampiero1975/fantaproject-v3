@@ -23,17 +23,17 @@
     "item_shape": "single_object"
   },
   "field_mappings": {
-    "provider_competition_key": "code",
+    "provider_competition_code": "code",
     "provider_competition_id": "id",
     "provider_area_id": "area.id",
     "competition_name": "name",
     "country_name": "area.name",
     "country_code": "area.code",
     "competition_type": "type",
-    "logo_url": "emblem"
+    "competition_logo_url": "emblem"
   },
   "required_internal_fields": [
-    "provider_competition_key",
+    "provider_competition_code",
     "competition_name",
     "country_name"
   ],

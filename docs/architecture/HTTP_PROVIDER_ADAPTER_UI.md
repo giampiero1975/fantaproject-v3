@@ -389,7 +389,7 @@ dipende dall'endpoint scelto.
 Per capability `competitions`:
 
 ```text
-provider_competition_key_path
+provider_competition_code_path
 provider_competition_id_path
 provider_area_id_path
 competition_name_path
@@ -436,7 +436,7 @@ Esempio:
 
 ```json
 {
-  "provider_competition_key": "SA",
+  "provider_competition_code": "SA",
   "provider_competition_id": 2019,
   "provider_area_id": 2114,
   "competition_name": "Serie A",
@@ -549,14 +549,14 @@ unique(capability, field_key)
 Esempio `competitions`:
 
 ```text
-provider_competition_key
+provider_competition_code
 provider_competition_id
 provider_area_id
 competition_name
 country_name
 country_code
 competition_type
-logo_url
+competition_logo_url
 ```
 
 Questi campi sono il vocabolario interno. Il mapping provider specifico dice invece da quale path del payload esterno arriva ogni campo.
@@ -605,10 +605,10 @@ Esempio `field_mappings`:
 
 ```json
 {
-  "provider_competition_key": "idLeague",
+  "provider_competition_code": "idLeague",
   "competition_name": "strLeague",
   "country_name": "strCountry",
-  "logo_url": "strBadge"
+  "competition_logo_url": "strBadge"
 }
 ```
 
@@ -693,7 +693,7 @@ Mapping da definire dopo test reale payload:
 
 ```text
 items_path
-provider_competition_key_path
+provider_competition_code_path
 competition_name_path
 country_name_path
 ```
