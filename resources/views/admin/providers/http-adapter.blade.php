@@ -153,6 +153,51 @@
                         </div>
                     </div>
                 @endif
+                <details class="mt-3 rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">
+                    <summary class="cursor-pointer text-sm font-semibold text-emerald-200">Aggiungi nuovo campo</summary>
+                    <form method="POST" action="{{ route('admin.providers.contract-fields.store', $provider->id) }}" class="mt-3 grid gap-2">
+                        @csrf
+                        <input type="hidden" name="capability" value="{{ $contractCapability }}">
+
+                        <label class="grid gap-1">
+                            <span class="text-[11px] font-semibold text-slate-400">Field key</span>
+                            <input name="field_key" value="{{ old('field_key') }}" placeholder="competition_logo_url" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                        </label>
+
+                        <label class="grid gap-1">
+                            <span class="text-[11px] font-semibold text-slate-400">Label</span>
+                            <input name="label" value="{{ old('label') }}" placeholder="Logo competizione" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                        </label>
+
+                        <label class="grid gap-1">
+                            <span class="text-[11px] font-semibold text-slate-400">Descrizione</span>
+                            <textarea name="description" rows="3" placeholder="Spiega cosa rappresenta il campo interno." class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">{{ old('description') }}</textarea>
+                        </label>
+
+                        <div class="grid grid-cols-[1fr_80px] gap-2">
+                            <label class="grid gap-1">
+                                <span class="text-[11px] font-semibold text-slate-400">Tipo</span>
+                                <select name="data_type" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                    @foreach (['string', 'integer', 'float', 'boolean', 'date', 'datetime', 'url', 'json'] as $type)
+                                        <option value="{{ $type }}" @selected(old('data_type', 'string') === $type)>{{ $type }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            <label class="grid gap-1">
+                                <span class="text-[11px] font-semibold text-slate-400">Ordine</span>
+                                <input type="number" name="sort_order" value="{{ old('sort_order', 100) }}" min="0" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                            </label>
+                        </div>
+
+                        <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
+                            <input type="checkbox" name="is_required" value="1" @checked(old('is_required')) class="rounded border-white/20 bg-slate-900">
+                            richiesto
+                        </label>
+
+                        <button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Crea campo interno</button>
+                    </form>
+                </details>
                 <div class="mt-3 space-y-3">
                     @foreach ($internalFields as $field => $info)
                         <div class="rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">

@@ -200,7 +200,9 @@ class ProviderManagementTest extends TestCase
             ->assertSee('HTTP Adapter')
             ->assertSee('Test request')
             ->assertSee('Items path')
-            ->assertSee('Field mapping');
+            ->assertSee('Field mapping')
+            ->assertSee('Aggiungi nuovo campo')
+            ->assertSee('Crea campo interno');
     }
 
     public function test_http_adapter_contract_fields_are_loaded_from_database(): void
