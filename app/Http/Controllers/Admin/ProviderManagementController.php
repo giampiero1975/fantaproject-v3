@@ -387,6 +387,7 @@ final class ProviderManagementController extends Controller
             'metadata' => $metadata,
             'capabilities' => ['competitions', 'seasons', 'teams'],
             'operations' => $this->operations(),
+            'operationDescriptions' => $this->operationDescriptions(),
             'savedEndpoints' => $savedEndpoints,
             'internalFields' => $this->internalFieldsFor('competitions'),
             'formInput' => $formInput,
@@ -592,6 +593,39 @@ final class ProviderManagementController extends Controller
             'by_competition' => 'Per competizione',
             'by_season' => 'Per stagione',
             'by_team' => 'Per squadra',
+        ];
+    }
+
+    /**
+     * @return array<string, array{when: string, example: string}>
+     */
+    private function operationDescriptions(): array
+    {
+        return [
+            'list' => [
+                'when' => 'Quando l endpoint restituisce una lista di record della capability scelta.',
+                'example' => 'competitions -> lista competizioni, items_path = competitions',
+            ],
+            'detail' => [
+                'when' => 'Quando l endpoint restituisce un singolo oggetto identificato da un codice o ID esterno.',
+                'example' => 'competitions/SA -> dettaglio Serie A, items_path vuoto',
+            ],
+            'search' => [
+                'when' => 'Quando l endpoint cerca record usando parametri liberi o filtri testuali.',
+                'example' => 'search_all_leagues.php?c={country_name} -> competizioni filtrate per paese',
+            ],
+            'by_competition' => [
+                'when' => 'Quando la richiesta dipende da una competizione gia mappata.',
+                'example' => 'teams?competition=SA oppure seasons?league=135',
+            ],
+            'by_season' => [
+                'when' => 'Quando la richiesta dipende da una stagione gia scelta o mappata.',
+                'example' => 'teams?season=2025 oppure fixtures?season=2025',
+            ],
+            'by_team' => [
+                'when' => 'Quando la richiesta dipende da una squadra gia mappata.',
+                'example' => 'players?team=123 oppure fixtures?team=123',
+            ],
         ];
     }
 

@@ -16,7 +16,11 @@
                 <p class="mt-2 leading-5">Parti da <strong>competitions</strong>. Solo dopo aver collegato la competizione esterna alla lega interna ha senso configurare seasons e teams.</p>
             </div>
 
-            <form method="POST" class="mt-5 grid gap-4 md:grid-cols-2" data-http-adapter-form>
+            <form method="POST" class="mt-5 grid gap-4 md:grid-cols-2" data-http-adapter-form
+                  x-data="{
+                      selectedOperation: @js($formInput['operation'] ?? 'list'),
+                      operationHelp: @js($operationDescriptions),
+                  }">
                 @csrf
 
                 <label class="space-y-1">
@@ -30,13 +34,22 @@
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Operation</span>
-                    <select name="operation" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                    <select name="operation" x-model="selectedOperation" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
                         @foreach ($operations as $operation => $label)
                             <option value="{{ $operation }}" @selected(($formInput['operation'] ?? 'list') === $operation)>{{ $label }}</option>
                         @endforeach
                     </select>
                     <span class="block text-[11px] text-slate-500">Esempio: lista competizioni o dettaglio singola competizione.</span>
                 </label>
+
+                <x-fo.card padding="p-4" class="md:col-span-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="font-semibold text-white">Operation selezionata</span>
+                        <code class="rounded bg-slate-950/70 px-2 py-0.5 text-xs text-violet-200" x-text="selectedOperation"></code>
+                    </div>
+                    <p class="mt-2 text-sm leading-5 text-slate-300" x-text="operationHelp[selectedOperation]?.when"></p>
+                    <p class="mt-2 font-mono text-xs leading-5 text-slate-200" x-text="operationHelp[selectedOperation]?.example"></p>
+                </x-fo.card>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Metodo</span>
@@ -116,6 +129,24 @@
                     @endforeach
                 </div>
             </section>
+
+            <x-fo.panel title="Guida operation" description="Capability e' la famiglia dati. Operation dice che tipo di chiamata stai configurando per quella famiglia.">
+                <div class="mt-3 space-y-3">
+                    @foreach ($operations as $operation => $label)
+                        @php($description = $operationDescriptions[$operation] ?? null)
+                        <div class="rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-semibold text-white">{{ $label }}</span>
+                                <code class="rounded bg-slate-900 px-2 py-0.5 text-[11px] text-slate-300">{{ $operation }}</code>
+                            </div>
+                            @if ($description)
+                                <p class="mt-2 text-xs leading-5 text-slate-400">{{ $description['when'] }}</p>
+                                <p class="mt-1 font-mono text-[11px] leading-5 text-slate-300">{{ $description['example'] }}</p>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </x-fo.panel>
 
             <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
                 <h2 class="font-semibold text-white">Mapping salvati</h2>

@@ -209,6 +209,86 @@ items_path: vuoto
 
 `SA` non e' un `items_path`: e' il parametro/identificatore esterno usato nell'endpoint di dettaglio.
 
+Operations disponibili:
+
+```text
+list
+```
+
+Da usare quando l'endpoint restituisce una lista/collezione di record della capability.
+
+Esempio:
+
+```text
+GET /competitions
+items_path = competitions
+```
+
+```text
+detail
+```
+
+Da usare quando l'endpoint restituisce un singolo oggetto identificato da un codice o ID esterno.
+
+Esempio:
+
+```text
+GET /competitions/SA
+items_path = vuoto
+```
+
+```text
+search
+```
+
+Da usare quando l'endpoint cerca record usando parametri liberi o filtri testuali.
+
+Esempio:
+
+```text
+GET /search_all_leagues.php?c=Italy
+items_path = countries
+```
+
+```text
+by_competition
+```
+
+Da usare quando la chiamata dipende da una competizione gia mappata.
+
+Esempio:
+
+```text
+GET /teams?competition=SA
+GET /seasons?league=135
+```
+
+```text
+by_season
+```
+
+Da usare quando la chiamata dipende da una stagione gia scelta o mappata.
+
+Esempio:
+
+```text
+GET /fixtures?season=2025
+GET /teams?season=2025
+```
+
+```text
+by_team
+```
+
+Da usare quando la chiamata dipende da una squadra gia mappata.
+
+Esempio:
+
+```text
+GET /players?team=123
+GET /fixtures?team=123
+```
+
 ### Step C - Request
 
 Campi:
