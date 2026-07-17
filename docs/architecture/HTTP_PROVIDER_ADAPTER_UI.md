@@ -472,6 +472,8 @@ storage/logs/administration/provider_managment/provider_management.log
 ```
 
 Contiene il diario verboso unico delle singole funzioni del menu Administration -> Provider Management.
+Il file viene riscritto all'inizio di ogni richiesta Provider Management: non viene mantenuto in append tra richieste diverse.
+Dentro la singola richiesta, invece, vengono registrati tutti i passaggi della procedura.
 
 Ogni riga e' bollata nel messaggio con:
 

@@ -924,12 +924,18 @@ final class ProviderManagementController extends Controller
         $functionality = preg_replace('/[^a-z0-9_]+/', '_', strtolower($functionality)) ?: 'general';
         $level = preg_replace('/[^a-z]+/', '', strtolower($level)) ?: 'info';
         $directory = storage_path('logs/administration/provider_managment');
+        $path = "{$directory}/provider_management.log";
 
         File::ensureDirectoryExists($directory);
 
+        if (! request()->attributes->get('provider_management_log_initialized', false)) {
+            File::put($path, '');
+            request()->attributes->set('provider_management_log_initialized', true);
+        }
+
         $logger = Log::build([
             'driver' => 'single',
-            'path' => "{$directory}/provider_management.log",
+            'path' => $path,
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
         ]);

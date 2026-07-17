@@ -233,6 +233,10 @@ class ProviderManagementTest extends TestCase
     public function test_provider_management_writes_functional_logs(): void
     {
         File::deleteDirectory(storage_path('logs/administration/provider_managment'));
+        File::ensureDirectoryExists(storage_path('logs/administration/provider_managment'));
+
+        $logPath = storage_path('logs/administration/provider_managment/provider_management.log');
+        File::put($logPath, 'old log line that must be replaced');
 
         $providerId = DB::table('data_providers')->insertGetId([
             'code' => 'football_data',
@@ -247,12 +251,11 @@ class ProviderManagementTest extends TestCase
             ->get(route('admin.providers.http-adapter.configure', $providerId))
             ->assertOk();
 
-        $logPath = storage_path('logs/administration/provider_managment/provider_management.log');
-
         $this->assertFileExists($logPath);
         $this->assertStringContainsString('[http_adapter_configuration][info]', File::get($logPath));
         $this->assertStringContainsString('HTTP adapter configuration page requested.', File::get($logPath));
         $this->assertStringContainsString('Provider Management', File::get($logPath));
+        $this->assertStringNotContainsString('old log line that must be replaced', File::get($logPath));
     }
 
     public function test_http_adapter_test_request_builds_preview_from_mapping(): void
