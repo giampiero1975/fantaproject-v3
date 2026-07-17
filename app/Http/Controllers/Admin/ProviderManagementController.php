@@ -761,7 +761,9 @@ final class ProviderManagementController extends Controller
             'sort_order' => (int) $data['sort_order'],
         ]);
 
-        return back()->with('status', "Campo contratto {$data['field_key']} aggiunto.");
+        return redirect()
+            ->route('admin.providers.http-adapter.configure', $provider)
+            ->with('status', "Campo contratto {$data['field_key']} aggiunto.");
     }
 
     public function updateContractField(Request $request, int $provider, string $fieldKey): RedirectResponse
@@ -804,7 +806,9 @@ final class ProviderManagementController extends Controller
             'sort_order' => (int) $data['sort_order'],
         ]);
 
-        return back()->with('status', "Campo contratto {$fieldKey} aggiornato.");
+        return redirect()
+            ->route('admin.providers.http-adapter.configure', $provider)
+            ->with('status', "Campo contratto {$fieldKey} aggiornato.");
     }
 
     /**

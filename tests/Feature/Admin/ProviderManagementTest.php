@@ -514,6 +514,7 @@ class ProviderManagementTest extends TestCase
             ]);
 
         $response->assertRedirect();
+        $response->assertRedirect(route('admin.providers.http-adapter.configure', $providerId));
         $response->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('data_provider_contract_fields', [
@@ -548,6 +549,7 @@ class ProviderManagementTest extends TestCase
             ]);
 
         $response->assertRedirect();
+        $response->assertRedirect(route('admin.providers.http-adapter.configure', $providerId));
         $response->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('data_provider_contract_fields', [
@@ -559,6 +561,22 @@ class ProviderManagementTest extends TestCase
             'is_required' => 1,
             'sort_order' => 75,
         ]);
+    }
+
+    public function test_contract_field_action_url_redirects_back_to_http_adapter_on_get(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.contract-fields.show', [$providerId, 'competition_logo_url']))
+            ->assertRedirect(route('admin.providers.http-adapter.configure', $providerId));
     }
 
     public function test_mapping_with_new_field_can_be_saved_after_field_is_added_to_contract(): void
