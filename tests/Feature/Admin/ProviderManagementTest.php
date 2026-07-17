@@ -481,11 +481,139 @@ class ProviderManagementTest extends TestCase
             ]);
 
         $response->assertSessionHasErrors('field_mappings');
+        $response->assertSessionHas('unknown_contract_fields', ['field_typo']);
+        $response->assertSessionHas('http_adapter_test_input');
         $this->assertDatabaseMissing('data_provider_http_endpoints', [
             'data_provider_id' => $providerId,
             'capability' => 'competitions',
             'operation' => 'list',
         ]);
+    }
+
+    public function test_unknown_contract_field_can_be_added_from_http_adapter_page(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.providers.contract-fields.store', $providerId), [
+                'capability' => 'competitions',
+                'field_key' => 'country_logo_url',
+                'label' => 'Logo paese',
+                'description' => 'Logo o bandiera del paese restituito dal provider.',
+                'data_type' => 'url',
+                'sort_order' => 80,
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('data_provider_contract_fields', [
+            'capability' => 'competitions',
+            'field_key' => 'country_logo_url',
+            'label' => 'Logo paese',
+            'data_type' => 'url',
+            'is_required' => 0,
+            'sort_order' => 80,
+        ]);
+    }
+
+    public function test_contract_field_can_be_updated_from_http_adapter_page(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->put(route('admin.providers.contract-fields.update', [$providerId, 'competition_logo_url']), [
+                'capability' => 'competitions',
+                'label' => 'Emblema competizione',
+                'description' => 'URL dell emblema ufficiale della competizione.',
+                'data_type' => 'url',
+                'is_required' => 1,
+                'sort_order' => 75,
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('data_provider_contract_fields', [
+            'capability' => 'competitions',
+            'field_key' => 'competition_logo_url',
+            'label' => 'Emblema competizione',
+            'description' => 'URL dell emblema ufficiale della competizione.',
+            'data_type' => 'url',
+            'is_required' => 1,
+            'sort_order' => 75,
+        ]);
+    }
+
+    public function test_mapping_with_new_field_can_be_saved_after_field_is_added_to_contract(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $payload = [
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'method' => 'GET',
+            'endpoint' => 'competitions',
+            'query_params' => '',
+            'items_path' => 'competitions',
+            'field_mappings' => "provider_competition_code=code\ncompetition_name=name\ncountry_name=area.name\ncountry_logo_url=area.flag",
+        ];
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), $payload)
+            ->assertSessionHasErrors('field_mappings')
+            ->assertSessionHas('unknown_contract_fields', ['country_logo_url']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.contract-fields.store', $providerId), [
+                'capability' => 'competitions',
+                'field_key' => 'country_logo_url',
+                'label' => 'Logo paese',
+                'description' => 'Bandiera o logo del paese.',
+                'data_type' => 'url',
+                'sort_order' => 80,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), $payload)
+            ->assertSessionHasNoErrors();
+
+        $endpoint = DB::table('data_provider_http_endpoints')
+            ->where('data_provider_id', $providerId)
+            ->where('capability', 'competitions')
+            ->where('operation', 'list')
+            ->first();
+
+        $this->assertNotNull($endpoint);
+
+        $mapping = DB::table('data_provider_payload_mappings')
+            ->where('data_provider_http_endpoint_id', $endpoint->id)
+            ->first();
+
+        $this->assertNotNull($mapping);
+        $this->assertSame('area.flag', json_decode($mapping->field_mappings, true)['country_logo_url']);
     }
 
     public function test_http_adapter_allows_multiple_operations_for_same_capability(): void

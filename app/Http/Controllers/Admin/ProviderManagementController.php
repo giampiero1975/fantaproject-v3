@@ -226,6 +226,14 @@ final class ProviderManagementController extends Controller
         return trim($code, '_');
     }
 
+    private function normalizeContractFieldKey(string $fieldKey): string
+    {
+        $fieldKey = strtolower(trim($fieldKey));
+        $fieldKey = preg_replace('/[^a-z0-9_]+/', '_', $fieldKey) ?? '';
+
+        return trim($fieldKey, '_');
+    }
+
     public function update(Request $request, int $provider): RedirectResponse
     {
         $this->providerLog('provider_configuration', 'info', 'Provider configuration update requested.', [
@@ -480,7 +488,9 @@ final class ProviderManagementController extends Controller
             'operations' => $this->operations(),
             'operationDescriptions' => $this->operationDescriptions(),
             'savedEndpoints' => $savedEndpoints,
-            'internalFields' => $this->internalFieldsFor('competitions'),
+            'contractCapability' => $formInput['capability'] ?? 'competitions',
+            'internalFields' => $this->internalFieldsFor($formInput['capability'] ?? 'competitions'),
+            'unknownContractFields' => session('unknown_contract_fields', []),
             'formInput' => $formInput,
             'testResult' => session('http_adapter_test_result'),
         ]);
@@ -507,6 +517,8 @@ final class ProviderManagementController extends Controller
                 ->withErrors([
                     'field_mappings' => 'Campi non presenti nel contratto: '.implode(', ', $unknownFields).'. Aggiungili prima a Campi interni oppure correggi il mapping.',
                 ])
+                ->with('unknown_contract_fields', $unknownFields)
+                ->with('http_adapter_test_input', $data)
                 ->withInput();
         }
 
@@ -613,6 +625,8 @@ final class ProviderManagementController extends Controller
                 ->withErrors([
                     'field_mappings' => 'Campi non presenti nel contratto: '.implode(', ', $unknownFields).'. Aggiungili prima a Campi interni oppure correggi il mapping.',
                 ])
+                ->with('unknown_contract_fields', $unknownFields)
+                ->with('http_adapter_test_input', $data)
                 ->withInput();
         }
 
@@ -699,6 +713,100 @@ final class ProviderManagementController extends Controller
             ->with('http_adapter_test_result', $testResult);
     }
 
+    public function storeContractField(Request $request, int $provider): RedirectResponse
+    {
+        $providerRow = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($providerRow, 404);
+
+        $data = $request->validate([
+            'capability' => ['required', 'in:competitions,seasons,teams'],
+            'field_key' => ['required', 'string', 'max:100', 'regex:/^[a-z][a-z0-9_]*$/'],
+            'label' => ['required', 'string', 'max:150'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'data_type' => ['required', 'in:string,integer,float,boolean,date,datetime,url,json'],
+            'is_required' => ['nullable', 'boolean'],
+            'sort_order' => ['required', 'integer', 'min:0', 'max:9999'],
+        ]);
+
+        $exists = DB::table('data_provider_contract_fields')
+            ->where('capability', $data['capability'])
+            ->where('field_key', $data['field_key'])
+            ->exists();
+
+        if ($exists) {
+            return back()
+                ->withErrors(['contract_field' => "Il campo {$data['field_key']} esiste gia nel contratto {$data['capability']}."])
+                ->withInput();
+        }
+
+        DB::table('data_provider_contract_fields')->insert([
+            'capability' => $data['capability'],
+            'field_key' => $data['field_key'],
+            'label' => $data['label'],
+            'description' => $data['description'] ?: null,
+            'data_type' => $data['data_type'],
+            'is_required' => (bool) ($data['is_required'] ?? false),
+            'sort_order' => (int) $data['sort_order'],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->providerLog('contract_fields', 'info', 'Provider contract field created.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'capability' => $data['capability'],
+            'field_key' => $data['field_key'],
+            'data_type' => $data['data_type'],
+            'is_required' => (bool) ($data['is_required'] ?? false),
+            'sort_order' => (int) $data['sort_order'],
+        ]);
+
+        return back()->with('status', "Campo contratto {$data['field_key']} aggiunto.");
+    }
+
+    public function updateContractField(Request $request, int $provider, string $fieldKey): RedirectResponse
+    {
+        $providerRow = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($providerRow, 404);
+
+        $data = $request->validate([
+            'capability' => ['required', 'in:competitions,seasons,teams'],
+            'label' => ['required', 'string', 'max:150'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'data_type' => ['required', 'in:string,integer,float,boolean,date,datetime,url,json'],
+            'is_required' => ['nullable', 'boolean'],
+            'sort_order' => ['required', 'integer', 'min:0', 'max:9999'],
+        ]);
+
+        $fieldKey = $this->normalizeContractFieldKey($fieldKey);
+
+        $updated = DB::table('data_provider_contract_fields')
+            ->where('capability', $data['capability'])
+            ->where('field_key', $fieldKey)
+            ->update([
+                'label' => $data['label'],
+                'description' => $data['description'] ?: null,
+                'data_type' => $data['data_type'],
+                'is_required' => (bool) ($data['is_required'] ?? false),
+                'sort_order' => (int) $data['sort_order'],
+                'updated_at' => now(),
+            ]);
+
+        abort_if($updated === 0, 404);
+
+        $this->providerLog('contract_fields', 'info', 'Provider contract field updated.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'capability' => $data['capability'],
+            'field_key' => $fieldKey,
+            'data_type' => $data['data_type'],
+            'is_required' => (bool) ($data['is_required'] ?? false),
+            'sort_order' => (int) $data['sort_order'],
+        ]);
+
+        return back()->with('status', "Campo contratto {$fieldKey} aggiornato.");
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -739,6 +847,7 @@ final class ProviderManagementController extends Controller
                     'label' => (string) $field->label,
                     'description' => (string) ($field->description ?? ''),
                     'data_type' => (string) $field->data_type,
+                    'sort_order' => (int) $field->sort_order,
                 ],
             ])
             ->all();
@@ -753,7 +862,7 @@ final class ProviderManagementController extends Controller
             ->where('capability', $capability)
             ->orderBy('sort_order')
             ->orderBy('field_key')
-            ->get(['field_key', 'label', 'description', 'data_type', 'is_required']);
+            ->get(['field_key', 'label', 'description', 'data_type', 'is_required', 'sort_order']);
     }
 
     /**

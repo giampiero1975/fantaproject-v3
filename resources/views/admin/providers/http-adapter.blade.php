@@ -116,7 +116,43 @@
             </section>
 
             <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
-                <h2 class="font-semibold text-white">Campi interni · competitions</h2>
+                <h2 class="font-semibold text-white">Campi interni · {{ $contractCapability }}</h2>
+                @error('contract_field')
+                    <div class="mt-3 rounded-xl bg-red-400/10 p-3 text-xs text-red-200 ring-1 ring-red-400/20">{{ $message }}</div>
+                @enderror
+                @if (! empty($unknownContractFields))
+                    <div class="mt-3 rounded-xl bg-amber-400/10 p-3 text-xs text-amber-100 ring-1 ring-amber-400/20">
+                        <div class="font-semibold text-white">Campi nuovi rilevati nel Field mapping</div>
+                        <p class="mt-1 text-amber-100/80">Aggiungili al contratto prima di salvare il mapping.</p>
+                        <div class="mt-3 space-y-3">
+                            @foreach ($unknownContractFields as $field)
+                                <form method="POST" action="{{ route('admin.providers.contract-fields.store', $provider->id) }}" class="rounded-lg bg-slate-950/50 p-3">
+                                    @csrf
+                                    <input type="hidden" name="capability" value="{{ $contractCapability }}">
+                                    <input type="hidden" name="field_key" value="{{ $field }}">
+                                    <div class="font-mono text-[11px] text-amber-100">{{ $field }}</div>
+                                    <div class="mt-2 grid gap-2">
+                                        <input name="label" value="{{ \Illuminate\Support\Str::headline($field) }}" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                        <textarea name="description" rows="2" placeholder="Descrizione del campo interno" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300"></textarea>
+                                        <div class="grid grid-cols-[1fr_80px] gap-2">
+                                            <select name="data_type" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                                @foreach (['url', 'string', 'integer', 'float', 'boolean', 'date', 'datetime', 'json'] as $type)
+                                                    <option value="{{ $type }}" @selected(\Illuminate\Support\Str::endsWith($field, '_url') ? $type === 'url' : $type === 'string')>{{ $type }}</option>
+                                                @endforeach
+                                            </select>
+                                            <input type="number" name="sort_order" value="{{ 80 + ($loop->index * 10) }}" min="0" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                        </div>
+                                        <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
+                                            <input type="checkbox" name="is_required" value="1" class="rounded border-white/20 bg-slate-900">
+                                            richiesto
+                                        </label>
+                                        <button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Aggiungi al contratto</button>
+                                    </div>
+                                </form>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
                 <div class="mt-3 space-y-3">
                     @foreach ($internalFields as $field => $info)
                         <div class="rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">
@@ -128,6 +164,29 @@
                                 <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $info['required'] ? 'bg-red-400/15 text-red-200' : 'bg-slate-600 text-slate-200' }}">{{ $info['required'] ? 'richiesto' : 'opzionale' }}</span>
                             </div>
                             <p class="mt-2 text-xs leading-5 text-slate-400">{{ $info['description'] }}</p>
+                            <details class="mt-3">
+                                <summary class="cursor-pointer text-xs font-semibold text-violet-200">Modifica campo</summary>
+                                <form method="POST" action="{{ route('admin.providers.contract-fields.update', [$provider->id, $field]) }}" class="mt-3 grid gap-2">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="capability" value="{{ $contractCapability }}">
+                                    <input name="label" value="{{ $info['label'] ?? $field }}" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                    <textarea name="description" rows="3" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">{{ $info['description'] }}</textarea>
+                                    <div class="grid grid-cols-[1fr_80px] gap-2">
+                                        <select name="data_type" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                            @foreach (['string', 'integer', 'float', 'boolean', 'date', 'datetime', 'url', 'json'] as $type)
+                                                <option value="{{ $type }}" @selected(($info['data_type'] ?? 'string') === $type)>{{ $type }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="number" name="sort_order" value="{{ $info['sort_order'] ?? 0 }}" min="0" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                    </div>
+                                    <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
+                                        <input type="checkbox" name="is_required" value="1" @checked($info['required']) class="rounded border-white/20 bg-slate-900">
+                                        richiesto
+                                    </label>
+                                    <button class="rounded bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-500">Aggiorna campo</button>
+                                </form>
+                            </details>
                         </div>
                     @endforeach
                 </div>

@@ -41,6 +41,8 @@ Route::middleware([
     Route::get('/providers/{provider}/http-adapter', [ProviderManagementController::class, 'configureHttpAdapter'])->name('providers.http-adapter.configure');
     Route::post('/providers/{provider}/http-adapter/test', [ProviderManagementController::class, 'testHttpAdapter'])->name('providers.http-adapter.test');
     Route::post('/providers/{provider}/http-adapter', [ProviderManagementController::class, 'saveHttpAdapter'])->name('providers.http-adapter.save');
+    Route::post('/providers/{provider}/contract-fields', [ProviderManagementController::class, 'storeContractField'])->name('providers.contract-fields.store');
+    Route::put('/providers/{provider}/contract-fields/{fieldKey}', [ProviderManagementController::class, 'updateContractField'])->name('providers.contract-fields.update');
 
     Route::get('/manage-season', [SeasonManagementController::class, 'index'])->name('seasons.index');
     Route::post('/manage-season/analyze', [SeasonManagementController::class, 'analyze'])->name('seasons.analyze');
