@@ -247,9 +247,10 @@ class ProviderManagementTest extends TestCase
             ->get(route('admin.providers.http-adapter.configure', $providerId))
             ->assertOk();
 
-        $logPath = storage_path('logs/administration/provider_managment/http_adapter_configuration.log');
+        $logPath = storage_path('logs/administration/provider_managment/provider_management.log');
 
         $this->assertFileExists($logPath);
+        $this->assertStringContainsString('[http_adapter_configuration][info]', File::get($logPath));
         $this->assertStringContainsString('HTTP adapter configuration page requested.', File::get($logPath));
         $this->assertStringContainsString('Provider Management', File::get($logPath));
     }

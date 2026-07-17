@@ -468,24 +468,26 @@ storage/logs/laravel.log
 Rimane il log applicativo generale. Gli errori bloccanti o le eccezioni catturate durante la procedura vengono tracciati anche qui.
 
 ```text
-storage/logs/administration/provider_managment/{funzionalita}.log
+storage/logs/administration/provider_managment/provider_management.log
 ```
 
-Contiene il diario verboso delle singole funzioni del menu Administration -> Provider Management.
+Contiene il diario verboso unico delle singole funzioni del menu Administration -> Provider Management.
 
-File attuali:
+Ogni riga e' bollata nel messaggio con:
 
 ```text
-provider_registration.log
-provider_configuration.log
-provider_runtime.log
-provider_credentials.log
-http_adapter_configuration.log
-http_adapter_test.log
-http_adapter_mapping.log
+[funzionalita][livello]
 ```
 
-Ogni riga include contesto comune:
+Esempio:
+
+```text
+[http_adapter_test][info] HTTP adapter test completed.
+[provider_runtime][warning] Provider runtime toggle blocked: adapter missing.
+[http_adapter_test][error] HTTP adapter test failed.
+```
+
+Ogni riga include anche contesto comune:
 
 ```text
 menu

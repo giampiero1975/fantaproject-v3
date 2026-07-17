@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
-use Psr\Log\LoggerInterface;
 use Throwable;
 
 final class ProviderManagementController extends Controller
@@ -104,7 +103,7 @@ final class ProviderManagementController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->providerLog('provider_registration')->info('Provider registration requested.', [
+        $this->providerLog('provider_registration', 'info', 'Provider registration requested.', [
             'raw_code' => $request->input('code'),
             'name' => $request->input('name'),
             'base_url' => $request->input('base_url'),
@@ -133,7 +132,7 @@ final class ProviderManagementController extends Controller
         $credentialKey = $data['credential_required'] ? ($data['credential_key'] ?? null) : null;
         $capabilities = array_values(array_unique($data['capabilities'] ?? []));
 
-        $this->providerLog('provider_registration')->debug('Provider registration validated.', [
+        $this->providerLog('provider_registration', 'debug', 'Provider registration validated.', [
             'code' => $data['code'],
             'adapter_supported' => $adapterSupported,
             'credential_required' => (bool) $data['credential_required'],
@@ -204,7 +203,7 @@ final class ProviderManagementController extends Controller
             }
         });
 
-        $this->providerLog('provider_registration')->info('Provider registration completed.', [
+        $this->providerLog('provider_registration', 'info', 'Provider registration completed.', [
             'code' => $data['code'],
             'provider_id' => $providerId,
             'runtime_enabled' => $adapterSupported,
@@ -229,7 +228,7 @@ final class ProviderManagementController extends Controller
 
     public function update(Request $request, int $provider): RedirectResponse
     {
-        $this->providerLog('provider_configuration')->info('Provider configuration update requested.', [
+        $this->providerLog('provider_configuration', 'info', 'Provider configuration update requested.', [
             'provider_id' => $provider,
         ]);
 
@@ -245,7 +244,7 @@ final class ProviderManagementController extends Controller
             'retry_sleep_ms' => ['required', 'integer', 'min:0', 'max:60000'],
         ]);
 
-        $this->providerLog('provider_configuration')->debug('Provider configuration validated.', [
+        $this->providerLog('provider_configuration', 'debug', 'Provider configuration validated.', [
             'provider_id' => $provider,
             'name' => $data['name'],
             'base_url' => $data['base_url'],
@@ -293,7 +292,7 @@ final class ProviderManagementController extends Controller
             ]);
         });
 
-        $this->providerLog('provider_configuration')->info('Provider configuration updated.', [
+        $this->providerLog('provider_configuration', 'info', 'Provider configuration updated.', [
             'provider_id' => $provider,
             'name' => $data['name'],
         ]);
@@ -303,7 +302,7 @@ final class ProviderManagementController extends Controller
 
     public function toggle(int $provider): RedirectResponse
     {
-        $this->providerLog('provider_runtime')->info('Provider runtime toggle requested.', [
+        $this->providerLog('provider_runtime', 'info', 'Provider runtime toggle requested.', [
             'provider_id' => $provider,
         ]);
 
@@ -311,7 +310,7 @@ final class ProviderManagementController extends Controller
         abort_unless($catalogProvider, 404);
 
         if (app(ProviderAdapterDefinitionRepository::class)->findInstalled($catalogProvider->code) === null) {
-            $this->providerLog('provider_runtime')->warning('Provider runtime toggle blocked: adapter missing.', [
+            $this->providerLog('provider_runtime', 'warning', 'Provider runtime toggle blocked: adapter missing.', [
                 'provider_id' => $provider,
                 'provider_code' => $catalogProvider->code,
             ]);
@@ -337,7 +336,7 @@ final class ProviderManagementController extends Controller
             ]);
         });
 
-        $this->providerLog('provider_runtime')->info('Provider runtime toggled.', [
+        $this->providerLog('provider_runtime', 'info', 'Provider runtime toggled.', [
             'provider_id' => $provider,
             'provider_code' => $catalogProvider->code,
             'runtime_enabled' => $enabled,
@@ -348,7 +347,7 @@ final class ProviderManagementController extends Controller
 
     public function rotateCredential(Request $request, int $provider): RedirectResponse
     {
-        $this->providerLog('provider_credentials')->info('Provider credential rotation requested.', [
+        $this->providerLog('provider_credentials', 'info', 'Provider credential rotation requested.', [
             'provider_id' => $provider,
         ]);
 
@@ -363,7 +362,7 @@ final class ProviderManagementController extends Controller
             : ($metadata['credential_key'] ?? null);
 
         if (empty($credentialKey)) {
-            $this->providerLog('provider_credentials')->warning('Provider credential rotation blocked: credential key missing.', [
+            $this->providerLog('provider_credentials', 'warning', 'Provider credential rotation blocked: credential key missing.', [
                 'provider_id' => $provider,
                 'provider_code' => $catalogProvider->code,
             ]);
@@ -392,7 +391,7 @@ final class ProviderManagementController extends Controller
             ]
         );
 
-        $this->providerLog('provider_credentials')->info('Provider credential rotated.', [
+        $this->providerLog('provider_credentials', 'info', 'Provider credential rotated.', [
             'provider_id' => $provider,
             'provider_code' => $catalogProvider->code,
             'credential_key' => $credentialKey,
@@ -404,7 +403,7 @@ final class ProviderManagementController extends Controller
 
     public function configureHttpAdapter(int $provider): View
     {
-        $this->providerLog('http_adapter_configuration')->info('HTTP adapter configuration page requested.', [
+        $this->providerLog('http_adapter_configuration', 'info', 'HTTP adapter configuration page requested.', [
             'provider_id' => $provider,
         ]);
 
@@ -465,7 +464,7 @@ final class ProviderManagementController extends Controller
             $providerPreset,
         );
 
-        $this->providerLog('http_adapter_configuration')->debug('HTTP adapter configuration page resolved.', [
+        $this->providerLog('http_adapter_configuration', 'debug', 'HTTP adapter configuration page resolved.', [
             'provider_id' => $provider,
             'provider_code' => $providerRow->code,
             'saved_endpoints_count' => $savedEndpoints->count(),
@@ -489,7 +488,7 @@ final class ProviderManagementController extends Controller
 
     public function testHttpAdapter(Request $request, int $provider): RedirectResponse
     {
-        $this->providerLog('http_adapter_test')->info('HTTP adapter test requested.', [
+        $this->providerLog('http_adapter_test', 'info', 'HTTP adapter test requested.', [
             'provider_id' => $provider,
         ]);
 
@@ -502,7 +501,7 @@ final class ProviderManagementController extends Controller
         $query = $this->parseKeyValueLines($data['query_params'] ?? '');
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
 
-        $this->providerLog('http_adapter_test')->debug('HTTP adapter test input parsed.', [
+        $this->providerLog('http_adapter_test', 'debug', 'HTTP adapter test input parsed.', [
             'provider_id' => $provider,
             'provider_code' => $providerRow->code,
             'capability' => $data['capability'],
@@ -536,7 +535,7 @@ final class ProviderManagementController extends Controller
                 'raw_preview' => $this->limitPayload($json),
             ];
 
-            $this->providerLog('http_adapter_test')->info('HTTP adapter test completed.', [
+            $this->providerLog('http_adapter_test', 'info', 'HTTP adapter test completed.', [
                 'provider_id' => $provider,
                 'provider_code' => $providerRow->code,
                 'capability' => $data['capability'],
@@ -569,7 +568,7 @@ final class ProviderManagementController extends Controller
                 'message' => $e->getMessage(),
             ];
 
-            $this->providerLog('http_adapter_test')->error('HTTP adapter test failed.', $context);
+            $this->providerLog('http_adapter_test', 'error', 'HTTP adapter test failed.', $context);
             Log::error('Administration provider management HTTP adapter test failed.', $context);
         }
 
@@ -580,7 +579,7 @@ final class ProviderManagementController extends Controller
 
     public function saveHttpAdapter(Request $request, int $provider): RedirectResponse
     {
-        $this->providerLog('http_adapter_mapping')->info('HTTP adapter mapping save requested.', [
+        $this->providerLog('http_adapter_mapping', 'info', 'HTTP adapter mapping save requested.', [
             'provider_id' => $provider,
         ]);
 
@@ -598,7 +597,7 @@ final class ProviderManagementController extends Controller
             && is_array($testInput)
             && $this->sameHttpAdapterInput($data, $testInput);
 
-        $this->providerLog('http_adapter_mapping')->debug('HTTP adapter mapping save input parsed.', [
+        $this->providerLog('http_adapter_mapping', 'debug', 'HTTP adapter mapping save input parsed.', [
             'provider_id' => $provider,
             'provider_code' => $providerRow->code,
             'capability' => $data['capability'],
@@ -657,7 +656,7 @@ final class ProviderManagementController extends Controller
             );
         });
 
-        $this->providerLog('http_adapter_mapping')->info('HTTP adapter mapping saved.', [
+        $this->providerLog('http_adapter_mapping', 'info', 'HTTP adapter mapping saved.', [
             'provider_id' => $provider,
             'provider_code' => $providerRow->code,
             'capability' => $data['capability'],
@@ -917,30 +916,35 @@ final class ProviderManagementController extends Controller
         return true;
     }
 
-    private function providerLog(string $functionality): LoggerInterface
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function providerLog(string $functionality, string $level, string $message, array $context = []): void
     {
         $functionality = preg_replace('/[^a-z0-9_]+/', '_', strtolower($functionality)) ?: 'general';
+        $level = preg_replace('/[^a-z]+/', '', strtolower($level)) ?: 'info';
         $directory = storage_path('logs/administration/provider_managment');
 
         File::ensureDirectoryExists($directory);
 
         $logger = Log::build([
             'driver' => 'single',
-            'path' => "{$directory}/{$functionality}.log",
+            'path' => "{$directory}/provider_management.log",
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
         ]);
 
-        $logger->withContext([
+        $context = array_merge([
             'menu' => 'Administration',
             'section' => 'Provider Management',
             'functionality' => $functionality,
+            'level' => $level,
             'user_id' => auth()->id(),
             'request_method' => request()->method(),
             'request_path' => request()->path(),
-        ]);
+        ], $context);
 
-        return $logger;
+        $logger->log($level, "[{$functionality}][{$level}] {$message}", $context);
     }
 
     private function buildProviderUrl(string $baseUrl, string $endpoint): string
