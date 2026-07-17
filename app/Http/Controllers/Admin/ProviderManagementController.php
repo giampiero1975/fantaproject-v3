@@ -13,9 +13,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 final class ProviderManagementController extends Controller
@@ -101,6 +104,12 @@ final class ProviderManagementController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->providerLog('provider_registration')->info('Provider registration requested.', [
+            'raw_code' => $request->input('code'),
+            'name' => $request->input('name'),
+            'base_url' => $request->input('base_url'),
+        ]);
+
         $request->merge([
             'code' => $this->normalizeProviderCode((string) $request->input('code')),
         ]);
@@ -124,7 +133,17 @@ final class ProviderManagementController extends Controller
         $credentialKey = $data['credential_required'] ? ($data['credential_key'] ?? null) : null;
         $capabilities = array_values(array_unique($data['capabilities'] ?? []));
 
-        DB::transaction(function () use ($data, $adapterSupported, $credentialKey, $capabilities): void {
+        $this->providerLog('provider_registration')->debug('Provider registration validated.', [
+            'code' => $data['code'],
+            'adapter_supported' => $adapterSupported,
+            'credential_required' => (bool) $data['credential_required'],
+            'credential_key' => $credentialKey,
+            'capabilities' => $capabilities,
+        ]);
+
+        $providerId = null;
+
+        DB::transaction(function () use ($data, $adapterSupported, $credentialKey, $capabilities, &$providerId): void {
             $providerId = DB::table('data_providers')->insertGetId([
                 'code' => $data['code'],
                 'name' => $data['name'],
@@ -185,6 +204,13 @@ final class ProviderManagementController extends Controller
             }
         });
 
+        $this->providerLog('provider_registration')->info('Provider registration completed.', [
+            'code' => $data['code'],
+            'provider_id' => $providerId,
+            'runtime_enabled' => $adapterSupported,
+            'onboarding_state' => $adapterSupported ? 'ready' : 'adapter_required',
+        ]);
+
         return back()->with(
             'status',
             $adapterSupported
@@ -203,6 +229,10 @@ final class ProviderManagementController extends Controller
 
     public function update(Request $request, int $provider): RedirectResponse
     {
+        $this->providerLog('provider_configuration')->info('Provider configuration update requested.', [
+            'provider_id' => $provider,
+        ]);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'base_url' => ['required', 'url', 'max:500'],
@@ -213,6 +243,19 @@ final class ProviderManagementController extends Controller
             'connect_timeout' => ['required', 'integer', 'min:1', 'max:120'],
             'retry_times' => ['required', 'integer', 'min:0', 'max:10'],
             'retry_sleep_ms' => ['required', 'integer', 'min:0', 'max:60000'],
+        ]);
+
+        $this->providerLog('provider_configuration')->debug('Provider configuration validated.', [
+            'provider_id' => $provider,
+            'name' => $data['name'],
+            'base_url' => $data['base_url'],
+            'role' => $data['role'],
+            'priority' => (int) $data['priority'],
+            'plan' => $data['plan'] ?: null,
+            'timeout' => (int) $data['timeout'],
+            'connect_timeout' => (int) $data['connect_timeout'],
+            'retry_times' => (int) $data['retry_times'],
+            'retry_sleep_ms' => (int) $data['retry_sleep_ms'],
         ]);
 
         DB::transaction(function () use ($provider, $data): void {
@@ -250,15 +293,29 @@ final class ProviderManagementController extends Controller
             ]);
         });
 
+        $this->providerLog('provider_configuration')->info('Provider configuration updated.', [
+            'provider_id' => $provider,
+            'name' => $data['name'],
+        ]);
+
         return back()->with('status', 'Configurazione provider aggiornata.');
     }
 
     public function toggle(int $provider): RedirectResponse
     {
+        $this->providerLog('provider_runtime')->info('Provider runtime toggle requested.', [
+            'provider_id' => $provider,
+        ]);
+
         $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($catalogProvider, 404);
 
         if (app(ProviderAdapterDefinitionRepository::class)->findInstalled($catalogProvider->code) === null) {
+            $this->providerLog('provider_runtime')->warning('Provider runtime toggle blocked: adapter missing.', [
+                'provider_id' => $provider,
+                'provider_code' => $catalogProvider->code,
+            ]);
+
             return back()->withErrors([
                 'provider' => 'Impossibile attivare il provider: adapter applicativo non installato.',
             ]);
@@ -280,11 +337,21 @@ final class ProviderManagementController extends Controller
             ]);
         });
 
+        $this->providerLog('provider_runtime')->info('Provider runtime toggled.', [
+            'provider_id' => $provider,
+            'provider_code' => $catalogProvider->code,
+            'runtime_enabled' => $enabled,
+        ]);
+
         return back()->with('status', $enabled ? 'Provider attivato.' : 'Provider disattivato. Mapping e storico sono stati conservati.');
     }
 
     public function rotateCredential(Request $request, int $provider): RedirectResponse
     {
+        $this->providerLog('provider_credentials')->info('Provider credential rotation requested.', [
+            'provider_id' => $provider,
+        ]);
+
         $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($catalogProvider, 404);
 
@@ -296,6 +363,11 @@ final class ProviderManagementController extends Controller
             : ($metadata['credential_key'] ?? null);
 
         if (empty($credentialKey)) {
+            $this->providerLog('provider_credentials')->warning('Provider credential rotation blocked: credential key missing.', [
+                'provider_id' => $provider,
+                'provider_code' => $catalogProvider->code,
+            ]);
+
             return back()->withErrors([
                 'provider' => 'Questo provider non richiede una credenziale oppure il nome tecnico non è configurato.',
             ]);
@@ -320,11 +392,22 @@ final class ProviderManagementController extends Controller
             ]
         );
 
+        $this->providerLog('provider_credentials')->info('Provider credential rotated.', [
+            'provider_id' => $provider,
+            'provider_code' => $catalogProvider->code,
+            'credential_key' => $credentialKey,
+            'environment' => app()->environment(),
+        ]);
+
         return back()->with('status', 'Credenziale cifrata salvata e ruotata per l’ambiente corrente.');
     }
 
     public function configureHttpAdapter(int $provider): View
     {
+        $this->providerLog('http_adapter_configuration')->info('HTTP adapter configuration page requested.', [
+            'provider_id' => $provider,
+        ]);
+
         $providerRow = DB::table('data_providers as p')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
             ->where('p.id', $provider)
@@ -382,6 +465,15 @@ final class ProviderManagementController extends Controller
             $providerPreset,
         );
 
+        $this->providerLog('http_adapter_configuration')->debug('HTTP adapter configuration page resolved.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'saved_endpoints_count' => $savedEndpoints->count(),
+            'current_capability' => $currentCapability,
+            'current_operation' => $currentOperation,
+            'current_endpoint_id' => $currentEndpoint?->id,
+        ]);
+
         return view('admin.providers.http-adapter', [
             'provider' => $providerRow,
             'metadata' => $metadata,
@@ -397,6 +489,10 @@ final class ProviderManagementController extends Controller
 
     public function testHttpAdapter(Request $request, int $provider): RedirectResponse
     {
+        $this->providerLog('http_adapter_test')->info('HTTP adapter test requested.', [
+            'provider_id' => $provider,
+        ]);
+
         $providerRow = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($providerRow, 404);
 
@@ -405,6 +501,18 @@ final class ProviderManagementController extends Controller
         $url = $this->buildProviderUrl((string) $providerRow->base_url, $data['endpoint']);
         $query = $this->parseKeyValueLines($data['query_params'] ?? '');
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
+
+        $this->providerLog('http_adapter_test')->debug('HTTP adapter test input parsed.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'capability' => $data['capability'],
+            'operation' => $data['operation'],
+            'method' => $data['method'],
+            'url' => $url,
+            'query_keys' => array_keys($query),
+            'items_path' => $data['items_path'] ?? '',
+            'mapped_fields' => array_keys($fieldMappings),
+        ]);
 
         try {
             $pendingRequest = $this->httpAdapterRequest($providerRow);
@@ -427,6 +535,18 @@ final class ProviderManagementController extends Controller
                     : null,
                 'raw_preview' => $this->limitPayload($json),
             ];
+
+            $this->providerLog('http_adapter_test')->info('HTTP adapter test completed.', [
+                'provider_id' => $provider,
+                'provider_code' => $providerRow->code,
+                'capability' => $data['capability'],
+                'operation' => $data['operation'],
+                'status' => $response->status(),
+                'successful' => $response->successful(),
+                'items_count' => count($items),
+                'first_item_keys' => is_array($firstItem) ? array_keys($firstItem) : [],
+                'normalized_fields' => is_array($result['normalized_preview']) ? array_keys($result['normalized_preview']) : [],
+            ]);
         } catch (ConnectionException | RequestException | Throwable $e) {
             $result = [
                 'ok' => false,
@@ -438,6 +558,19 @@ final class ProviderManagementController extends Controller
                 'raw_preview' => null,
                 'error' => $e->getMessage(),
             ];
+
+            $context = [
+                'provider_id' => $provider,
+                'provider_code' => $providerRow->code,
+                'capability' => $data['capability'],
+                'operation' => $data['operation'],
+                'url' => $url,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ];
+
+            $this->providerLog('http_adapter_test')->error('HTTP adapter test failed.', $context);
+            Log::error('Administration provider management HTTP adapter test failed.', $context);
         }
 
         return back()
@@ -447,6 +580,10 @@ final class ProviderManagementController extends Controller
 
     public function saveHttpAdapter(Request $request, int $provider): RedirectResponse
     {
+        $this->providerLog('http_adapter_mapping')->info('HTTP adapter mapping save requested.', [
+            'provider_id' => $provider,
+        ]);
+
         $providerRow = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($providerRow, 404);
 
@@ -460,6 +597,21 @@ final class ProviderManagementController extends Controller
         $testBelongsToCurrentForm = is_array($testResult)
             && is_array($testInput)
             && $this->sameHttpAdapterInput($data, $testInput);
+
+        $this->providerLog('http_adapter_mapping')->debug('HTTP adapter mapping save input parsed.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'capability' => $data['capability'],
+            'operation' => $data['operation'],
+            'method' => $data['method'],
+            'endpoint' => $data['endpoint'],
+            'query_keys' => array_keys($query),
+            'items_path' => $data['items_path'] ?? '',
+            'mapped_fields' => array_keys($fieldMappings),
+            'required_fields' => $requiredFields,
+            'mapping_status' => $mappingStatus,
+            'test_belongs_to_current_form' => $testBelongsToCurrentForm,
+        ]);
 
         DB::transaction(function () use ($provider, $data, $query, $fieldMappings, $requiredFields, $mappingStatus, $testResult, $testBelongsToCurrentForm): void {
             DB::table('data_provider_http_endpoints')->updateOrInsert(
@@ -504,6 +656,16 @@ final class ProviderManagementController extends Controller
                 ]
             );
         });
+
+        $this->providerLog('http_adapter_mapping')->info('HTTP adapter mapping saved.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'capability' => $data['capability'],
+            'operation' => $data['operation'],
+            'mapping_status' => $mappingStatus,
+            'is_enabled' => $mappingStatus === 'mapping_validated',
+            'last_status_code' => $testBelongsToCurrentForm ? ($testResult['status'] ?? null) : null,
+        ]);
 
         return back()
             ->with('status', 'HTTP adapter salvato nel runtime provider.')
@@ -753,6 +915,32 @@ final class ProviderManagementController extends Controller
         }
 
         return true;
+    }
+
+    private function providerLog(string $functionality): LoggerInterface
+    {
+        $functionality = preg_replace('/[^a-z0-9_]+/', '_', strtolower($functionality)) ?: 'general';
+        $directory = storage_path('logs/administration/provider_managment');
+
+        File::ensureDirectoryExists($directory);
+
+        $logger = Log::build([
+            'driver' => 'single',
+            'path' => "{$directory}/{$functionality}.log",
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ]);
+
+        $logger->withContext([
+            'menu' => 'Administration',
+            'section' => 'Provider Management',
+            'functionality' => $functionality,
+            'user_id' => auth()->id(),
+            'request_method' => request()->method(),
+            'request_path' => request()->path(),
+        ]);
+
+        return $logger;
     }
 
     private function buildProviderUrl(string $baseUrl, string $endpoint): string

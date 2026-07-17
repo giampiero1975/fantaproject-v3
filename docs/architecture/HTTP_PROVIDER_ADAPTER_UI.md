@@ -457,6 +457,47 @@ validation status
 
 ## 6. Modello dati proposto
 
+## Logging operativo
+
+La procedura Provider Management mantiene due livelli di logging:
+
+```text
+storage/logs/laravel.log
+```
+
+Rimane il log applicativo generale. Gli errori bloccanti o le eccezioni catturate durante la procedura vengono tracciati anche qui.
+
+```text
+storage/logs/administration/provider_managment/{funzionalita}.log
+```
+
+Contiene il diario verboso delle singole funzioni del menu Administration -> Provider Management.
+
+File attuali:
+
+```text
+provider_registration.log
+provider_configuration.log
+provider_runtime.log
+provider_credentials.log
+http_adapter_configuration.log
+http_adapter_test.log
+http_adapter_mapping.log
+```
+
+Ogni riga include contesto comune:
+
+```text
+menu
+section
+functionality
+user_id
+request_method
+request_path
+```
+
+Le credenziali non vengono mai scritte in chiaro nei log. Si traccia solo la chiave tecnica, ad esempio `token` o `api_key`.
+
 ### `data_provider_contract_fields`
 
 Contiene il contratto interno normalizzato per ogni capability. La UI non deve definire questi campi nel controller.

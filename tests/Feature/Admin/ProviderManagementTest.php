@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -227,6 +228,30 @@ class ProviderManagementTest extends TestCase
             ->assertOk()
             ->assertSee('Chiave competizione provider')
             ->assertSee('Descrizione modificata da tabella contratto.');
+    }
+
+    public function test_provider_management_writes_functional_logs(): void
+    {
+        File::deleteDirectory(storage_path('logs/administration/provider_managment'));
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertOk();
+
+        $logPath = storage_path('logs/administration/provider_managment/http_adapter_configuration.log');
+
+        $this->assertFileExists($logPath);
+        $this->assertStringContainsString('HTTP adapter configuration page requested.', File::get($logPath));
+        $this->assertStringContainsString('Provider Management', File::get($logPath));
     }
 
     public function test_http_adapter_test_request_builds_preview_from_mapping(): void
