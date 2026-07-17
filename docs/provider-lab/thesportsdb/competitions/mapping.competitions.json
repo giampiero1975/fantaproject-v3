@@ -19,16 +19,16 @@
     "items_path": "countries"
   },
   "field_mappings": {
-    "external_id": "idLeague",
-    "name": "strLeague",
-    "country": "strCountry",
-    "sport": "strSport",
+    "provider_competition_key": "idLeague",
+    "competition_name": "strLeague",
+    "country_name": "strCountry",
+    "competition_type": "strSport",
     "logo_url": "strBadge"
   },
   "required_internal_fields": [
-    "external_id",
-    "name",
-    "country"
+    "provider_competition_key",
+    "competition_name",
+    "country_name"
   ],
   "validation_status": "lab_validated",
   "runtime_status": {

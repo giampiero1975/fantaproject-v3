@@ -24,17 +24,18 @@
     "items_path": "response"
   },
   "field_mappings": {
-    "external_id": "league.id",
-    "name": "league.name",
-    "country": "country.name",
+    "provider_competition_key": "league.id",
+    "provider_competition_id": "league.id",
+    "competition_name": "league.name",
+    "country_name": "country.name",
     "country_code": "country.code",
-    "type": "league.type",
+    "competition_type": "league.type",
     "logo_url": "league.logo"
   },
   "required_internal_fields": [
-    "external_id",
-    "name",
-    "country"
+    "provider_competition_key",
+    "competition_name",
+    "country_name"
   ],
   "validation_status": "mapped_from_native_adapter",
   "runtime_status": {

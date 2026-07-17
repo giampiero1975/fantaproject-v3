@@ -216,7 +216,7 @@ class ProviderManagementTest extends TestCase
 
         DB::table('data_provider_contract_fields')
             ->where('capability', 'competitions')
-            ->where('field_key', 'external_id')
+            ->where('field_key', 'provider_competition_key')
             ->update([
                 'label' => 'Chiave competizione provider',
                 'description' => 'Descrizione modificata da tabella contratto.',
@@ -289,7 +289,7 @@ class ProviderManagementTest extends TestCase
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
                 'items_path' => 'leagues',
-                'field_mappings' => "external_id=idLeague\nname=strLeague\ncountry=strCountry",
+                'field_mappings' => "provider_competition_key=idLeague\ncompetition_name=strLeague\ncountry_name=strCountry",
             ]);
 
         $response->assertRedirect();
@@ -300,9 +300,9 @@ class ProviderManagementTest extends TestCase
         $this->assertSame(200, $result['status']);
         $this->assertSame(1, $result['items_count']);
         $this->assertSame([
-            'external_id' => '4332',
-            'name' => 'Italian Serie A',
-            'country' => 'Italy',
+            'provider_competition_key' => '4332',
+            'competition_name' => 'Italian Serie A',
+            'country_name' => 'Italy',
         ], $result['normalized_preview']);
 
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'search_all_leagues.php'));
@@ -351,7 +351,7 @@ class ProviderManagementTest extends TestCase
                 'endpoint' => 'competitions',
                 'query_params' => '',
                 'items_path' => 'competitions',
-                'field_mappings' => "external_id=code\nname=name\ncountry=area.name",
+                'field_mappings' => "provider_competition_key=code\ncompetition_name=name\ncountry_name=area.name",
             ])
             ->assertRedirect();
 
@@ -399,7 +399,7 @@ class ProviderManagementTest extends TestCase
                 'endpoint' => 'leagues',
                 'query_params' => 'id=135',
                 'items_path' => 'response',
-                'field_mappings' => "external_id=league.id\nname=league.name\ncountry=country.name",
+                'field_mappings' => "provider_competition_key=league.id\ncompetition_name=league.name\ncountry_name=country.name",
             ])
             ->assertRedirect();
 
@@ -425,7 +425,7 @@ class ProviderManagementTest extends TestCase
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
                 'items_path' => 'countries',
-                'field_mappings' => "external_id=idLeague\nname=strLeague\ncountry=strCountry",
+                'field_mappings' => "provider_competition_key=idLeague\ncompetition_name=strLeague\ncountry_name=strCountry",
             ]);
 
         $response->assertRedirect();
@@ -452,9 +452,9 @@ class ProviderManagementTest extends TestCase
         $this->assertNotNull($mapping);
         $this->assertSame('mapping_validated', $mapping->validation_status);
         $this->assertSame([
-            'external_id' => 'idLeague',
-            'name' => 'strLeague',
-            'country' => 'strCountry',
+            'provider_competition_key' => 'idLeague',
+            'competition_name' => 'strLeague',
+            'country_name' => 'strCountry',
         ], json_decode($mapping->field_mappings, true));
     }
 
@@ -473,7 +473,7 @@ class ProviderManagementTest extends TestCase
             'capability' => 'competitions',
             'method' => 'GET',
             'query_params' => '',
-            'field_mappings' => "external_id=code\nprovider_numeric_id=id\nname=name\ncountry=area.name",
+            'field_mappings' => "provider_competition_key=code\nprovider_competition_id=id\nprovider_area_id=area.id\ncompetition_name=name\ncountry_name=area.name",
         ];
 
         $this->actingAs($this->admin)
@@ -543,15 +543,16 @@ class ProviderManagementTest extends TestCase
         DB::table('data_provider_payload_mappings')->insert([
             'data_provider_http_endpoint_id' => $endpointId,
             'field_mappings' => json_encode([
-                'external_id' => 'code',
-                'provider_numeric_id' => 'id',
-                'name' => 'name',
-                'country' => 'area.name',
+                'provider_competition_key' => 'code',
+                'provider_competition_id' => 'id',
+                'provider_area_id' => 'area.id',
+                'competition_name' => 'name',
+                'country_name' => 'area.name',
                 'country_code' => 'area.code',
-                'type' => 'type',
+                'competition_type' => 'type',
                 'logo_url' => 'emblem',
             ]),
-            'required_fields' => json_encode(['external_id', 'name', 'country']),
+            'required_fields' => json_encode(['provider_competition_key', 'competition_name', 'country_name']),
             'validation_status' => 'mapping_validated',
             'created_at' => now(),
             'updated_at' => now(),
@@ -561,9 +562,9 @@ class ProviderManagementTest extends TestCase
             ->get(route('admin.providers.http-adapter.configure', $providerId))
             ->assertOk()
             ->assertSee('value="competitions"', false)
-            ->assertSee('external_id=code')
-            ->assertSee('country=area.name')
-            ->assertDontSee('external_id=idLeague')
+            ->assertSee('provider_competition_key=code')
+            ->assertSee('country_name=area.name')
+            ->assertDontSee('provider_competition_key=idLeague')
             ->assertDontSee('c=Italy');
     }
 

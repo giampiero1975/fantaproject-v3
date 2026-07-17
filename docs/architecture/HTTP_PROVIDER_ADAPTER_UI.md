@@ -389,10 +389,13 @@ dipende dall'endpoint scelto.
 Per capability `competitions`:
 
 ```text
-external_id_path
-name_path
-country_path
-type_path
+provider_competition_key_path
+provider_competition_id_path
+provider_area_id_path
+competition_name_path
+country_name_path
+country_code_path
+competition_type_path
 logo_path
 metadata_paths
 ```
@@ -433,11 +436,29 @@ Esempio:
 
 ```json
 {
-  "external_id": "4331",
-  "name": "Italian Serie A",
-  "country": "Italy"
+  "provider_competition_key": "SA",
+  "provider_competition_id": 2019,
+  "provider_area_id": 2114,
+  "competition_name": "Serie A",
+  "country_name": "Italy",
+  "country_code": "ITA",
+  "competition_type": "LEAGUE"
 }
 ```
+
+Nel payload Football-Data:
+
+```text
+id = 2019
+```
+
+e' l'ID numerico della competizione.
+
+```text
+area.id = 2114
+```
+
+e' l'ID numerico dell'area/paese. Non va confuso con l'ID della competizione.
 
 ### Step H - Salvataggio
 
@@ -528,12 +549,13 @@ unique(capability, field_key)
 Esempio `competitions`:
 
 ```text
-external_id
-provider_numeric_id
-name
-country
+provider_competition_key
+provider_competition_id
+provider_area_id
+competition_name
+country_name
 country_code
-type
+competition_type
 logo_url
 ```
 
@@ -583,10 +605,10 @@ Esempio `field_mappings`:
 
 ```json
 {
-  "external_id": "idLeague",
-  "name": "strLeague",
-  "country": "strCountry",
-  "logo": "strBadge"
+  "provider_competition_key": "idLeague",
+  "competition_name": "strLeague",
+  "country_name": "strCountry",
+  "logo_url": "strBadge"
 }
 ```
 
@@ -671,9 +693,9 @@ Mapping da definire dopo test reale payload:
 
 ```text
 items_path
-external_id_path
-name_path
-country_path
+provider_competition_key_path
+competition_name_path
+country_name_path
 ```
 
 Nota: TheSportsDB usa spesso nomi lega come input per endpoint successivi. Questo va modellato esplicitamente nel mapping.

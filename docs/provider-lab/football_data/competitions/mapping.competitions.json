@@ -23,18 +23,19 @@
     "item_shape": "single_object"
   },
   "field_mappings": {
-    "external_id": "code",
-    "provider_numeric_id": "id",
-    "name": "name",
-    "country": "area.name",
+    "provider_competition_key": "code",
+    "provider_competition_id": "id",
+    "provider_area_id": "area.id",
+    "competition_name": "name",
+    "country_name": "area.name",
     "country_code": "area.code",
-    "type": "type",
+    "competition_type": "type",
     "logo_url": "emblem"
   },
   "required_internal_fields": [
-    "external_id",
-    "name",
-    "country"
+    "provider_competition_key",
+    "competition_name",
+    "country_name"
   ],
   "validation_status": "mapped_from_native_adapter",
   "runtime_status": {

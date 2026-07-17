@@ -19,24 +19,26 @@
     "items_path": null
   },
   "field_mappings": {
-    "external_id": null,
-    "name": null,
-    "country": null,
+    "provider_competition_key": null,
+    "provider_competition_id": null,
+    "provider_area_id": null,
+    "competition_name": null,
+    "country_name": null,
     "country_code": null,
-    "type": null,
+    "competition_type": null,
     "logo_url": null
   },
   "required_internal_fields": [
-    "external_id",
-    "name",
-    "country"
+    "provider_competition_key",
+    "competition_name",
+    "country_name"
   ],
   "validation_status": "pending_documentation",
   "blocking_questions": [
     "Quale endpoint SportMonks useremo per la discovery competizioni?",
     "Quale scope iniziale e' corretto: country, league search o lista completa?",
     "Quale items_path restituisce la lista competizioni?",
-    "Quali campi payload mappano external_id, name e country?"
+    "Quali campi payload mappano provider_competition_key, competition_name e country_name?"
   ],
   "runtime_status": {
     "reachable": false,
