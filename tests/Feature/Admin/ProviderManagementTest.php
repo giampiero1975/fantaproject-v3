@@ -655,6 +655,42 @@ class ProviderManagementTest extends TestCase
         ]);
     }
 
+    public function test_contract_field_key_is_normalized_when_created_from_payload_camel_case(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.contract-fields.store', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'detail',
+                'field_key' => 'startDate',
+                'label' => 'Data inizio stagione',
+                'description' => 'Data di inizio della stagione corrente restituita dal provider.',
+                'data_type' => 'date',
+                'is_required' => 1,
+                'sort_order' => 110,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Campo contratto start_date aggiunto. Nota: startDate e stato normalizzato in start_date.');
+
+        $this->assertDatabaseHas('data_provider_contract_fields', [
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'field_key' => 'start_date',
+            'label' => 'Data inizio stagione',
+            'data_type' => 'date',
+            'is_required' => 1,
+            'sort_order' => 110,
+        ]);
+    }
+
     public function test_contract_field_can_be_updated_from_http_adapter_page(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

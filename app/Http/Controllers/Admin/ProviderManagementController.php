@@ -228,7 +228,8 @@ final class ProviderManagementController extends Controller
 
     private function normalizeContractFieldKey(string $fieldKey): string
     {
-        $fieldKey = strtolower(trim($fieldKey));
+        $fieldKey = Str::snake(trim($fieldKey));
+        $fieldKey = strtolower($fieldKey);
         $fieldKey = preg_replace('/[^a-z0-9_]+/', '_', $fieldKey) ?? '';
 
         return trim($fieldKey, '_');
@@ -753,6 +754,11 @@ final class ProviderManagementController extends Controller
     {
         $providerRow = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($providerRow, 404);
+        $rawFieldKey = (string) $request->input('field_key');
+
+        $request->merge([
+            'field_key' => $this->normalizeContractFieldKey($rawFieldKey),
+        ]);
 
         $data = $request->validate([
             'capability' => ['required', 'in:competitions,seasons,teams'],
@@ -795,15 +801,20 @@ final class ProviderManagementController extends Controller
             'provider_code' => $providerRow->code,
             'capability' => $data['capability'],
             'operation' => $data['operation'],
+            'raw_field_key' => $rawFieldKey,
             'field_key' => $data['field_key'],
             'data_type' => $data['data_type'],
             'is_required' => (bool) ($data['is_required'] ?? false),
             'sort_order' => (int) $data['sort_order'],
         ]);
 
+        $status = $rawFieldKey !== $data['field_key']
+            ? "Campo contratto {$data['field_key']} aggiunto. Nota: {$rawFieldKey} e stato normalizzato in {$data['field_key']}."
+            : "Campo contratto {$data['field_key']} aggiunto.";
+
         return redirect()
             ->route('admin.providers.http-adapter.configure', $provider)
-            ->with('status', "Campo contratto {$data['field_key']} aggiunto.");
+            ->with('status', $status);
     }
 
     public function updateContractField(Request $request, int $provider, string $fieldKey): RedirectResponse

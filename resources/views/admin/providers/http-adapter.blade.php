@@ -121,6 +121,18 @@
                 @error('contract_field')
                     <div class="mt-3 rounded-xl bg-red-400/10 p-3 text-xs text-red-200 ring-1 ring-red-400/20">{{ $message }}</div>
                 @enderror
+                @if (collect(['field_key', 'label', 'description', 'data_type', 'is_required', 'sort_order', 'operation'])->contains(fn (string $field): bool => $errors->has($field)))
+                    <div class="mt-3 rounded-xl bg-red-400/10 p-3 text-xs text-red-200 ring-1 ring-red-400/20">
+                        <div class="font-semibold text-white">Campo interno non salvato</div>
+                        <ul class="mt-2 list-disc space-y-1 pl-4">
+                            @foreach (['field_key', 'label', 'description', 'data_type', 'is_required', 'sort_order', 'operation'] as $errorField)
+                                @error($errorField)
+                                    <li>{{ $message }}</li>
+                                @enderror
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
                 @foreach ($internalFieldsByOperation as $operation => $internalFields)
                     <div x-show="selectedOperation === @js($operation)" x-cloak>
                         @if ($operation === $contractOperation && ! empty($unknownContractFields))
@@ -168,6 +180,7 @@
                                 <label class="grid gap-1">
                                     <span class="text-[11px] font-semibold text-slate-400">Field key</span>
                                     <input name="field_key" value="{{ old('field_key') }}" placeholder="competition_logo_url" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                    <span class="text-[11px] leading-4 text-slate-500">Nome interno in snake_case. Esempio: per il payload <code>startDate</code> usa <code>season_start_date</code> e poi nel mapping scrivi <code>season_start_date=startDate</code>.</span>
                                 </label>
 
                                 <label class="grid gap-1">
