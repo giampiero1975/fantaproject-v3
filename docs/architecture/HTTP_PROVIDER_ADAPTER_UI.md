@@ -158,13 +158,14 @@ Prima schermata implementata:
 La pagina permette di:
 
 - scegliere capability;
+- scegliere operation;
 - configurare method, endpoint, query params e body;
 - impostare `items_path`;
 - dichiarare un primo field mapping;
 - lanciare una test request;
 - vedere status, URL risolto, primo item raw e preview normalizzata.
 
-La prima versione non salva ancora il mapping definitivo: serve a replicare dentro la UI il ciclo di esplorazione che oggi viene fatto in Postman.
+La pagina salva il mapping runtime nel database applicativo. Bruno resta il laboratorio versionato, ma Laravel e' la fonte runtime.
 
 ### Step A - Capability
 
@@ -186,7 +187,29 @@ Per la prima implementazione:
 competitions
 ```
 
-### Step B - Request
+### Step B - Operation
+
+La capability e' la famiglia dati. L'operation e' l'azione concreta su quella famiglia.
+
+Esempio Football-Data:
+
+```text
+capability: competitions
+operation: list
+endpoint: competitions
+items_path: competitions
+```
+
+```text
+capability: competitions
+operation: detail
+endpoint: competitions/SA
+items_path: vuoto
+```
+
+`SA` non e' un `items_path`: e' il parametro/identificatore esterno usato nell'endpoint di dettaglio.
+
+### Step C - Request
 
 Campi:
 
@@ -209,7 +232,7 @@ query:
   c = Italy
 ```
 
-### Step C - Variabili disponibili
+### Step D - Variabili disponibili
 
 La UI deve mostrare quali variabili possono essere usate.
 
@@ -237,7 +260,7 @@ Per `teams`:
 {season_year}
 ```
 
-### Step D - Test Request
+### Step E - Test Request
 
 Pulsante:
 
@@ -257,7 +280,7 @@ errore eventuale
 
 La test request non salva dati di dominio.
 
-### Step E - Response selector
+### Step F - Response selector
 
 Campi:
 
@@ -281,7 +304,7 @@ items_path = leagues
 
 dipende dall'endpoint scelto.
 
-### Step F - Field mapping
+### Step G - Field mapping
 
 Per capability `competitions`:
 
@@ -343,6 +366,7 @@ Salva:
 ```text
 provider
 capability
+operation
 request config
 response mapping
 test sample
@@ -353,24 +377,24 @@ validation status
 
 ## 6. Modello dati proposto
 
-### `data_provider_http_adapters`
+### `data_provider_http_endpoints`
 
 ```text
 id
 data_provider_id
 capability
+operation
 method
 endpoint
-auth_mode
-headers_template json
-query_template json
+query_params json nullable
 body_template json nullable
 items_path
-pagination_path nullable
-enabled boolean
+is_enabled boolean
 last_tested_at nullable
 last_status_code nullable
-last_error nullable
+sample_payload json nullable
+sample_normalized json nullable
+validation_status
 created_at
 updated_at
 ```
@@ -378,18 +402,16 @@ updated_at
 Vincoli:
 
 ```text
-unique(data_provider_id, capability)
+unique(data_provider_id, capability, operation)
 ```
 
-### `data_provider_response_mappings`
+### `data_provider_payload_mappings`
 
 ```text
 id
-http_adapter_id
-target_contract
+data_provider_http_endpoint_id
 field_mappings json
-sample_payload json nullable
-sample_normalized json nullable
+required_fields json
 validation_status
 created_at
 updated_at

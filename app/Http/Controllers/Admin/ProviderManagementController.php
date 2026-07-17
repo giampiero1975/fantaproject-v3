@@ -346,9 +346,11 @@ final class ProviderManagementController extends Controller
             ->leftJoin('data_provider_payload_mappings as m', 'm.data_provider_http_endpoint_id', '=', 'e.id')
             ->where('e.data_provider_id', $provider)
             ->orderBy('e.capability')
+            ->orderBy('e.operation')
             ->get([
                 'e.id',
                 'e.capability',
+                'e.operation',
                 'e.method',
                 'e.endpoint',
                 'e.query_params',
@@ -369,7 +371,10 @@ final class ProviderManagementController extends Controller
                 return $endpoint;
             });
         $currentCapability = (string) session('http_adapter_test_input.capability', 'competitions');
-        $currentEndpoint = $savedEndpoints->firstWhere('capability', $currentCapability);
+        $currentOperation = (string) session('http_adapter_test_input.operation', 'list');
+        $currentEndpoint = $savedEndpoints
+            ->where('capability', $currentCapability)
+            ->firstWhere('operation', $currentOperation);
         $providerPreset = $this->httpAdapterPreset($providerRow->code);
         $formInput = $this->httpAdapterFormInput(
             session('http_adapter_test_input', []),
@@ -381,6 +386,7 @@ final class ProviderManagementController extends Controller
             'provider' => $providerRow,
             'metadata' => $metadata,
             'capabilities' => ['competitions', 'seasons', 'teams'],
+            'operations' => $this->operations(),
             'savedEndpoints' => $savedEndpoints,
             'internalFields' => $this->internalFieldsFor('competitions'),
             'formInput' => $formInput,
@@ -459,6 +465,7 @@ final class ProviderManagementController extends Controller
                 [
                     'data_provider_id' => $provider,
                     'capability' => $data['capability'],
+                    'operation' => $data['operation'],
                 ],
                 [
                     'method' => $data['method'],
@@ -482,6 +489,7 @@ final class ProviderManagementController extends Controller
             $endpointId = DB::table('data_provider_http_endpoints')
                 ->where('data_provider_id', $provider)
                 ->where('capability', $data['capability'])
+                ->where('operation', $data['operation'])
                 ->value('id');
 
             DB::table('data_provider_payload_mappings')->updateOrInsert(
@@ -509,6 +517,7 @@ final class ProviderManagementController extends Controller
     {
         return $request->validate([
             'capability' => ['required', 'in:competitions,seasons,teams'],
+            'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
             'method' => ['required', 'in:GET,POST'],
             'endpoint' => ['required', 'string', 'max:250'],
             'query_params' => ['nullable', 'string', 'max:4000'],
@@ -574,11 +583,27 @@ final class ProviderManagementController extends Controller
     /**
      * @return array<string, string>
      */
+    private function operations(): array
+    {
+        return [
+            'list' => 'Lista / collezione',
+            'detail' => 'Dettaglio singolo',
+            'search' => 'Ricerca',
+            'by_competition' => 'Per competizione',
+            'by_season' => 'Per stagione',
+            'by_team' => 'Per squadra',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
     private function httpAdapterPreset(string $providerCode): array
     {
         return match ($providerCode) {
             'football_data' => [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'method' => 'GET',
                 'endpoint' => 'competitions',
                 'query_params' => '',
@@ -596,6 +621,7 @@ final class ProviderManagementController extends Controller
             ],
             'api_football' => [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'method' => 'GET',
                 'endpoint' => 'leagues',
                 'query_params' => 'id=135',
@@ -612,6 +638,7 @@ final class ProviderManagementController extends Controller
             ],
             'thesportsdb' => [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'method' => 'GET',
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
@@ -627,6 +654,7 @@ final class ProviderManagementController extends Controller
             ],
             default => [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'method' => 'GET',
                 'endpoint' => '',
                 'query_params' => '',
@@ -653,6 +681,7 @@ final class ProviderManagementController extends Controller
         if ($savedEndpoint !== null) {
             $savedInput = [
                 'capability' => (string) $savedEndpoint->capability,
+                'operation' => (string) $savedEndpoint->operation,
                 'method' => (string) $savedEndpoint->method,
                 'endpoint' => (string) $savedEndpoint->endpoint,
                 'query_params' => $this->keyValueText($savedEndpoint->query_params_decoded),
@@ -696,7 +725,7 @@ final class ProviderManagementController extends Controller
      */
     private function sameHttpAdapterInput(array $current, array $previous): bool
     {
-        foreach (['capability', 'method', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings'] as $key) {
+        foreach (['capability', 'operation', 'method', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings'] as $key) {
             if (($current[$key] ?? null) !== ($previous[$key] ?? null)) {
                 return false;
             }

@@ -1,6 +1,7 @@
 {
   "provider": "thesportsdb",
   "capability": "competitions",
+  "operation": "search",
   "scope": "country",
   "request": {
     "method": "GET",

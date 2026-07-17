@@ -56,6 +56,26 @@ Ogni provider parametrizzato deve avere almeno la mappatura `competitions`.
 
 Le request Bruno eseguibili vengono aggiunte solo quando endpoint, auth e input di test sono verificati. Una mappatura con `validation_status = pending_documentation` non deve essere considerata pronta.
 
+## Capability e operation
+
+La capability indica la famiglia dati. L'operation indica cosa fa quello specifico endpoint.
+
+Esempio Football-Data:
+
+```text
+competitions + list
+GET /competitions
+items_path = competitions
+```
+
+```text
+competitions + detail
+GET /competitions/SA
+items_path = vuoto
+```
+
+`items_path` serve solo a dire dove si trova la lista nel JSON. Se l'endpoint restituisce un singolo oggetto, resta vuoto.
+
 ## Stati da riportare in Laravel
 
 ```text

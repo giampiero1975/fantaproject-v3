@@ -1,6 +1,7 @@
 {
   "provider": "football_data",
   "capability": "competitions",
+  "operation": "detail",
   "scope": "competition_code",
   "adapter_type": "native_php",
   "request": {

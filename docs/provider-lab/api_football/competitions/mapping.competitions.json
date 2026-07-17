@@ -1,6 +1,7 @@
 {
   "provider": "api_football",
   "capability": "competitions",
+  "operation": "detail",
   "scope": "league_id",
   "adapter_type": "native_php",
   "request": {

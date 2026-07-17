@@ -228,6 +228,7 @@ class ProviderManagementTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->post(route('admin.providers.http-adapter.test', $providerId), [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'method' => 'GET',
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
@@ -289,6 +290,7 @@ class ProviderManagementTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.providers.http-adapter.test', $providerId), [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'method' => 'GET',
                 'endpoint' => 'competitions',
                 'query_params' => '',
@@ -336,6 +338,7 @@ class ProviderManagementTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.providers.http-adapter.test', $providerId), [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'method' => 'GET',
                 'endpoint' => 'leagues',
                 'query_params' => 'id=135',
@@ -361,6 +364,7 @@ class ProviderManagementTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->post(route('admin.providers.http-adapter.save', $providerId), [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'method' => 'GET',
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
@@ -374,6 +378,7 @@ class ProviderManagementTest extends TestCase
         $endpoint = DB::table('data_provider_http_endpoints')
             ->where('data_provider_id', $providerId)
             ->where('capability', 'competitions')
+            ->where('operation', 'list')
             ->first();
 
         $this->assertNotNull($endpoint);
@@ -397,6 +402,62 @@ class ProviderManagementTest extends TestCase
         ], json_decode($mapping->field_mappings, true));
     }
 
+    public function test_http_adapter_allows_multiple_operations_for_same_capability(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $basePayload = [
+            'capability' => 'competitions',
+            'method' => 'GET',
+            'query_params' => '',
+            'field_mappings' => "external_id=code\nprovider_numeric_id=id\nname=name\ncountry=area.name",
+        ];
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), array_merge($basePayload, [
+                'operation' => 'list',
+                'endpoint' => 'competitions',
+                'items_path' => 'competitions',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), array_merge($basePayload, [
+                'operation' => 'detail',
+                'endpoint' => 'competitions/SA',
+                'items_path' => '',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('data_provider_http_endpoints', [
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'endpoint' => 'competitions',
+            'items_path' => 'competitions',
+        ]);
+
+        $this->assertDatabaseHas('data_provider_http_endpoints', [
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'endpoint' => 'competitions/SA',
+            'items_path' => null,
+        ]);
+
+        $this->assertSame(2, DB::table('data_provider_http_endpoints')
+            ->where('data_provider_id', $providerId)
+            ->where('capability', 'competitions')
+            ->count());
+    }
+
     public function test_http_adapter_page_prefills_saved_mapping_instead_of_placeholders(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
@@ -411,6 +472,7 @@ class ProviderManagementTest extends TestCase
         $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
             'data_provider_id' => $providerId,
             'capability' => 'competitions',
+            'operation' => 'list',
             'method' => 'GET',
             'endpoint' => 'competitions',
             'query_params' => null,
@@ -477,6 +539,7 @@ class ProviderManagementTest extends TestCase
         DB::table('data_provider_http_endpoints')->insert([
             'data_provider_id' => $providerId,
             'capability' => 'competitions',
+            'operation' => 'list',
             'method' => 'GET',
             'endpoint' => 'competitions',
             'items_path' => 'competitions',

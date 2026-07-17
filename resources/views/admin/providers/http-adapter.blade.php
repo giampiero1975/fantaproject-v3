@@ -29,6 +29,16 @@
                 </label>
 
                 <label class="space-y-1">
+                    <span class="text-xs font-medium text-slate-700">Operation</span>
+                    <select name="operation" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                        @foreach ($operations as $operation => $label)
+                            <option value="{{ $operation }}" @selected(($formInput['operation'] ?? 'list') === $operation)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <span class="block text-[11px] text-slate-500">Esempio: lista competizioni o dettaglio singola competizione.</span>
+                </label>
+
+                <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Metodo</span>
                     <select name="method" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
                         <option value="GET" @selected(($formInput['method'] ?? 'GET') === 'GET')>GET</option>
@@ -114,7 +124,7 @@
                         <div class="rounded-xl bg-slate-950/70 p-3 ring-1 ring-white/10">
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <div>
-                                    <div class="font-semibold text-white">{{ $endpoint->capability }}</div>
+                                    <div class="font-semibold text-white">{{ $endpoint->capability }} · {{ $endpoint->operation }}</div>
                                     <div class="font-mono text-xs text-slate-400">{{ $endpoint->method }} {{ $endpoint->endpoint }}</div>
                                 </div>
                                 <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $endpoint->is_enabled ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200' }}">

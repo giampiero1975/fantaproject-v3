@@ -1,6 +1,7 @@
 {
   "provider": "sportmonks",
   "capability": "competitions",
+  "operation": "search",
   "scope": "country_or_league",
   "adapter_type": "pending",
   "request": {
