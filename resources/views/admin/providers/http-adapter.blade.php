@@ -134,13 +134,13 @@
                                     <div class="mt-2 grid gap-2">
                                         <input name="label" value="{{ \Illuminate\Support\Str::headline($field) }}" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                                         <textarea name="description" rows="2" placeholder="Descrizione del campo interno" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300"></textarea>
-                                        <div class="grid grid-cols-[1fr_80px] gap-2">
-                                            <select name="data_type" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                        <div class="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
+                                            <select name="data_type" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                                                 @foreach (['url', 'string', 'integer', 'float', 'boolean', 'date', 'datetime', 'json'] as $type)
                                                     <option value="{{ $type }}" @selected(\Illuminate\Support\Str::endsWith($field, '_url') ? $type === 'url' : $type === 'string')>{{ $type }}</option>
                                                 @endforeach
                                             </select>
-                                            <input type="number" name="sort_order" value="{{ 80 + ($loop->index * 10) }}" min="0" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                            <input type="number" name="sort_order" value="{{ 80 + ($loop->index * 10) }}" min="0" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                                         </div>
                                         <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
                                             <input type="checkbox" name="is_required" value="1" class="rounded border-white/20 bg-slate-900">
@@ -174,10 +174,10 @@
                             <textarea name="description" rows="3" placeholder="Spiega cosa rappresenta il campo interno." class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">{{ old('description') }}</textarea>
                         </label>
 
-                        <div class="grid grid-cols-[1fr_80px] gap-2">
+                        <div class="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
                             <label class="grid gap-1">
                                 <span class="text-[11px] font-semibold text-slate-400">Tipo</span>
-                                <select name="data_type" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                <select name="data_type" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                                     @foreach (['string', 'integer', 'float', 'boolean', 'date', 'datetime', 'url', 'json'] as $type)
                                         <option value="{{ $type }}" @selected(old('data_type', 'string') === $type)>{{ $type }}</option>
                                     @endforeach
@@ -186,7 +186,7 @@
 
                             <label class="grid gap-1">
                                 <span class="text-[11px] font-semibold text-slate-400">Ordine</span>
-                                <input type="number" name="sort_order" value="{{ old('sort_order', 100) }}" min="0" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                <input type="number" name="sort_order" value="{{ old('sort_order', 100) }}" min="0" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                             </label>
                         </div>
 
@@ -217,13 +217,13 @@
                                     <input type="hidden" name="capability" value="{{ $contractCapability }}">
                                     <input name="label" value="{{ $info['label'] ?? $field }}" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                                     <textarea name="description" rows="3" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">{{ $info['description'] }}</textarea>
-                                    <div class="grid grid-cols-[1fr_80px] gap-2">
-                                        <select name="data_type" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                    <div class="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
+                                        <select name="data_type" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                                             @foreach (['string', 'integer', 'float', 'boolean', 'date', 'datetime', 'url', 'json'] as $type)
                                                 <option value="{{ $type }}" @selected(($info['data_type'] ?? 'string') === $type)>{{ $type }}</option>
                                             @endforeach
                                         </select>
-                                        <input type="number" name="sort_order" value="{{ $info['sort_order'] ?? 0 }}" min="0" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                        <input type="number" name="sort_order" value="{{ $info['sort_order'] ?? 0 }}" min="0" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                                     </div>
                                     <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
                                         <input type="checkbox" name="is_required" value="1" @checked($info['required']) class="rounded border-white/20 bg-slate-900">
