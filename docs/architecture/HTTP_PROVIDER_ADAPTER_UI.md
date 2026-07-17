@@ -457,6 +457,43 @@ validation status
 
 ## 6. Modello dati proposto
 
+### `data_provider_contract_fields`
+
+Contiene il contratto interno normalizzato per ogni capability. La UI non deve definire questi campi nel controller.
+
+```text
+id
+capability
+field_key
+label
+description nullable
+data_type
+is_required
+sort_order
+created_at
+updated_at
+```
+
+Vincoli:
+
+```text
+unique(capability, field_key)
+```
+
+Esempio `competitions`:
+
+```text
+external_id
+provider_numeric_id
+name
+country
+country_code
+type
+logo_url
+```
+
+Questi campi sono il vocabolario interno. Il mapping provider specifico dice invece da quale path del payload esterno arriva ogni campo.
+
 ### `data_provider_http_endpoints`
 
 ```text

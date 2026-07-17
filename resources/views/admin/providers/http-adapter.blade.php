@@ -121,7 +121,10 @@
                     @foreach ($internalFields as $field => $info)
                         <div class="rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">
                             <div class="flex items-center justify-between gap-3">
-                                <code class="text-xs text-white">{{ $field }}</code>
+                                <div>
+                                    <div class="text-sm font-semibold text-white">{{ $info['label'] ?? $field }}</div>
+                                    <code class="text-xs text-slate-400">{{ $field }}</code>
+                                </div>
                                 <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $info['required'] ? 'bg-red-400/15 text-red-200' : 'bg-slate-600 text-slate-200' }}">{{ $info['required'] ? 'richiesto' : 'opzionale' }}</span>
                             </div>
                             <p class="mt-2 text-xs leading-5 text-slate-400">{{ $info['description'] }}</p>

@@ -202,6 +202,33 @@ class ProviderManagementTest extends TestCase
             ->assertSee('Field mapping');
     }
 
+    public function test_http_adapter_contract_fields_are_loaded_from_database(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_contract_fields')
+            ->where('capability', 'competitions')
+            ->where('field_key', 'external_id')
+            ->update([
+                'label' => 'Chiave competizione provider',
+                'description' => 'Descrizione modificata da tabella contratto.',
+                'updated_at' => now(),
+            ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertOk()
+            ->assertSee('Chiave competizione provider')
+            ->assertSee('Descrizione modificata da tabella contratto.');
+    }
+
     public function test_http_adapter_test_request_builds_preview_from_mapping(): void
     {
         Http::fake([

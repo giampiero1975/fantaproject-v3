@@ -533,12 +533,10 @@ final class ProviderManagementController extends Controller
      */
     private function requiredFieldsFor(string $capability): array
     {
-        return match ($capability) {
-            'competitions' => ['external_id', 'name', 'country'],
-            'seasons' => ['external_id', 'name'],
-            'teams' => ['external_id', 'name'],
-            default => ['external_id', 'name'],
-        };
+        return $this->contractFieldsFor($capability)
+            ->filter(fn (object $field): bool => (bool) $field->is_required)
+            ->pluck('field_key')
+            ->all();
     }
 
     /**
@@ -546,39 +544,28 @@ final class ProviderManagementController extends Controller
      */
     private function internalFieldsFor(string $capability): array
     {
-        return match ($capability) {
-            'competitions' => [
-                'external_id' => [
-                    'required' => true,
-                    'description' => 'ID stabile del provider. Per Football-Data e\' il codice competizione, es. SA.',
+        return $this->contractFieldsFor($capability)
+            ->mapWithKeys(fn (object $field): array => [
+                $field->field_key => [
+                    'required' => (bool) $field->is_required,
+                    'label' => (string) $field->label,
+                    'description' => (string) ($field->description ?? ''),
+                    'data_type' => (string) $field->data_type,
                 ],
-                'name' => [
-                    'required' => true,
-                    'description' => 'Nome leggibile della competizione.',
-                ],
-                'country' => [
-                    'required' => true,
-                    'description' => 'Nazione o area della competizione.',
-                ],
-                'provider_numeric_id' => [
-                    'required' => false,
-                    'description' => 'ID numerico del provider, utile per audit e chiamate future.',
-                ],
-                'country_code' => [
-                    'required' => false,
-                    'description' => 'Codice paese/area restituito dal provider.',
-                ],
-                'type' => [
-                    'required' => false,
-                    'description' => 'Tipo competizione, es. LEAGUE o CUP.',
-                ],
-                'logo_url' => [
-                    'required' => false,
-                    'description' => 'URL logo/emblema della competizione.',
-                ],
-            ],
-            default => [],
-        };
+            ])
+            ->all();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function contractFieldsFor(string $capability): \Illuminate\Support\Collection
+    {
+        return DB::table('data_provider_contract_fields')
+            ->where('capability', $capability)
+            ->orderBy('sort_order')
+            ->orderBy('field_key')
+            ->get(['field_key', 'label', 'description', 'data_type', 'is_required']);
     }
 
     /**
