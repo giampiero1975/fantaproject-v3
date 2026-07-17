@@ -13,6 +13,13 @@
          x-data="{
              selectedOperation: @js($formInput['operation'] ?? 'list'),
              operationHelp: @js($operationDescriptions),
+             clearOperationFields() {
+                 this.$refs.endpoint.value = '';
+                 this.$refs.queryParams.value = '';
+                 this.$refs.bodyTemplate.value = '';
+                 this.$refs.itemsPath.value = '';
+                 this.$refs.fieldMappings.value = '';
+             },
          }">
         <section class="rounded-2xl bg-slate-100 p-5 text-slate-900 shadow-lg shadow-black/10">
             <div class="rounded-xl bg-blue-50 p-4 text-sm text-blue-950 ring-1 ring-blue-200">
@@ -34,7 +41,7 @@
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Operation</span>
-                    <select name="operation" x-model="selectedOperation" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                    <select name="operation" x-model="selectedOperation" @change="clearOperationFields()" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
                         @foreach ($operations as $operation => $label)
                             <option value="{{ $operation }}" @selected(($formInput['operation'] ?? 'list') === $operation)>{{ $label }}</option>
                         @endforeach
@@ -66,31 +73,31 @@
 
                 <label class="space-y-1 md:col-span-2">
                     <span class="text-xs font-medium text-slate-700">Endpoint</span>
-                    <input name="endpoint" value="{{ $formInput['endpoint'] ?? '' }}" placeholder="competitions" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300" required>
+                    <input name="endpoint" x-ref="endpoint" value="{{ $formInput['endpoint'] ?? '' }}" placeholder="competitions" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300" required>
                     <span class="block text-[11px] text-slate-500">Inserisci un endpoint relativo alla base URL, come in Postman.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Query params</span>
-                    <textarea name="query_params" rows="6" placeholder="id=135" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['query_params'] ?? '' }}</textarea>
+                    <textarea name="query_params" x-ref="queryParams" rows="6" placeholder="id=135" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['query_params'] ?? '' }}</textarea>
                     <span class="block text-[11px] text-slate-500">Formato: una coppia key=value per riga.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Body JSON</span>
-                    <textarea name="body_template" rows="6" placeholder='{"country":"Italy"}' class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['body_template'] ?? '' }}</textarea>
+                    <textarea name="body_template" x-ref="bodyTemplate" rows="6" placeholder='{"country":"Italy"}' class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['body_template'] ?? '' }}</textarea>
                     <span class="block text-[11px] text-slate-500">Usato solo per POST. Per la prima fase usa GET.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Items path</span>
-                    <input name="items_path" value="{{ $formInput['items_path'] ?? '' }}" placeholder="competitions" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">
+                    <input name="items_path" x-ref="itemsPath" value="{{ $formInput['items_path'] ?? '' }}" placeholder="competitions" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">
                     <span class="block text-[11px] text-slate-500">Percorso dove si trova la lista nel JSON. Esempio: teams, leagues, data.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Field mapping</span>
-                    <textarea name="field_mappings" rows="6" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['field_mappings'] ?? '' }}</textarea>
+                    <textarea name="field_mappings" x-ref="fieldMappings" rows="6" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['field_mappings'] ?? '' }}</textarea>
                     <span class="block text-[11px] text-slate-500">Formato: campo_interno=path_payload.</span>
                 </label>
 

@@ -205,6 +205,26 @@ class ProviderManagementTest extends TestCase
             ->assertSee('Crea campo interno');
     }
 
+    public function test_http_adapter_configuration_does_not_prefill_mapping_placeholders_without_saved_endpoint(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertOk()
+            ->assertSee('name="items_path" x-ref="itemsPath" value=""', false)
+            ->assertSee('<textarea name="field_mappings"', false)
+            ->assertDontSee('provider_competition_code=code')
+            ->assertDontSee('country_name=area.name');
+    }
+
     public function test_http_adapter_contract_fields_are_loaded_from_database(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

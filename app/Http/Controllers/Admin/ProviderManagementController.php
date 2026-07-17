@@ -985,17 +985,8 @@ final class ProviderManagementController extends Controller
                 'endpoint' => 'competitions',
                 'query_params' => '',
                 'body_template' => '',
-                'items_path' => 'competitions',
-                'field_mappings' => implode("\n", [
-                    'provider_competition_code=code',
-                    'provider_competition_id=id',
-                    'provider_area_id=area.id',
-                    'competition_name=name',
-                    'country_name=area.name',
-                    'country_code=area.code',
-                    'competition_type=type',
-                    'competition_logo_url=emblem',
-                ]),
+                'items_path' => '',
+                'field_mappings' => '',
             ],
             'api_football' => [
                 'capability' => 'competitions',
@@ -1004,16 +995,8 @@ final class ProviderManagementController extends Controller
                 'endpoint' => 'leagues',
                 'query_params' => 'id=135',
                 'body_template' => '',
-                'items_path' => 'response',
-                'field_mappings' => implode("\n", [
-                    'provider_competition_code=league.id',
-                    'provider_competition_id=league.id',
-                    'competition_name=league.name',
-                    'country_name=country.name',
-                    'country_code=country.code',
-                    'competition_type=league.type',
-                    'competition_logo_url=league.logo',
-                ]),
+                'items_path' => '',
+                'field_mappings' => '',
             ],
             'thesportsdb' => [
                 'capability' => 'competitions',
@@ -1022,14 +1005,8 @@ final class ProviderManagementController extends Controller
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
                 'body_template' => '',
-                'items_path' => 'countries',
-                'field_mappings' => implode("\n", [
-                    'provider_competition_code=idLeague',
-                    'competition_name=strLeague',
-                    'country_name=strCountry',
-                    'competition_type=strSport',
-                    'competition_logo_url=strBadge',
-                ]),
+                'items_path' => '',
+                'field_mappings' => '',
             ],
             default => [
                 'capability' => 'competitions',
@@ -1039,11 +1016,7 @@ final class ProviderManagementController extends Controller
                 'query_params' => '',
                 'body_template' => '',
                 'items_path' => '',
-                'field_mappings' => implode("\n", [
-                    'provider_competition_code=',
-                    'competition_name=',
-                    'country_name=',
-                ]),
+                'field_mappings' => '',
             ],
         };
     }
