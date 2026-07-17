@@ -9,18 +9,18 @@
         </div>
     </x-slot>
 
-    <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+    <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]"
+         x-data="{
+             selectedOperation: @js($formInput['operation'] ?? 'list'),
+             operationHelp: @js($operationDescriptions),
+         }">
         <section class="rounded-2xl bg-slate-100 p-5 text-slate-900 shadow-lg shadow-black/10">
             <div class="rounded-xl bg-blue-50 p-4 text-sm text-blue-950 ring-1 ring-blue-200">
                 <h2 class="font-semibold">Ordine guidato</h2>
                 <p class="mt-2 leading-5">Parti da <strong>competitions</strong>. Solo dopo aver collegato la competizione esterna alla lega interna ha senso configurare seasons e teams.</p>
             </div>
 
-            <form method="POST" class="mt-5 grid gap-4 md:grid-cols-2" data-http-adapter-form
-                  x-data="{
-                      selectedOperation: @js($formInput['operation'] ?? 'list'),
-                      operationHelp: @js($operationDescriptions),
-                  }">
+            <form method="POST" class="mt-5 grid gap-4 md:grid-cols-2" data-http-adapter-form>
                 @csrf
 
                 <label class="space-y-1">
@@ -116,90 +116,97 @@
             </section>
 
             <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
-                <h2 class="font-semibold text-white">Campi interni · {{ $contractCapability }}</h2>
+                <h2 class="font-semibold text-white">Campi interni · {{ $contractCapability }} · <span x-text="selectedOperation"></span></h2>
+                <p class="mt-1 text-xs leading-5 text-slate-400">Questi campi appartengono solo alla operation selezionata. Cambiando operation cambia anche il contratto interno visualizzato.</p>
                 @error('contract_field')
                     <div class="mt-3 rounded-xl bg-red-400/10 p-3 text-xs text-red-200 ring-1 ring-red-400/20">{{ $message }}</div>
                 @enderror
-                @if (! empty($unknownContractFields))
-                    <div class="mt-3 rounded-xl bg-amber-400/10 p-3 text-xs text-amber-100 ring-1 ring-amber-400/20">
-                        <div class="font-semibold text-white">Campi nuovi rilevati nel Field mapping</div>
-                        <p class="mt-1 text-amber-100/80">Aggiungili al contratto prima di salvare il mapping.</p>
-                        <div class="mt-3 space-y-3">
-                            @foreach ($unknownContractFields as $field)
-                                <form method="POST" action="{{ route('admin.providers.contract-fields.store', $provider->id) }}" class="rounded-lg bg-slate-950/50 p-3">
-                                    @csrf
-                                    <input type="hidden" name="capability" value="{{ $contractCapability }}">
-                                    <input type="hidden" name="field_key" value="{{ $field }}">
-                                    <div class="font-mono text-[11px] text-amber-100">{{ $field }}</div>
-                                    <div class="mt-2 grid gap-2">
-                                        <input name="label" value="{{ \Illuminate\Support\Str::headline($field) }}" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
-                                        <textarea name="description" rows="2" placeholder="Descrizione del campo interno" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300"></textarea>
-                                        <div class="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
-                                            <select name="data_type" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
-                                                @foreach (['url', 'string', 'integer', 'float', 'boolean', 'date', 'datetime', 'json'] as $type)
-                                                    <option value="{{ $type }}" @selected(\Illuminate\Support\Str::endsWith($field, '_url') ? $type === 'url' : $type === 'string')>{{ $type }}</option>
-                                                @endforeach
-                                            </select>
-                                            <input type="number" name="sort_order" value="{{ 80 + ($loop->index * 10) }}" min="0" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
-                                        </div>
-                                        <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
-                                            <input type="checkbox" name="is_required" value="1" class="rounded border-white/20 bg-slate-900">
-                                            richiesto
-                                        </label>
-                                        <button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Aggiungi al contratto</button>
-                                    </div>
-                                </form>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-                <details class="mt-3 rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">
-                    <summary class="cursor-pointer text-sm font-semibold text-emerald-200">Aggiungi nuovo campo</summary>
-                    <form method="POST" action="{{ route('admin.providers.contract-fields.store', $provider->id) }}" class="mt-3 grid gap-2">
-                        @csrf
-                        <input type="hidden" name="capability" value="{{ $contractCapability }}">
-
-                        <label class="grid gap-1">
-                            <span class="text-[11px] font-semibold text-slate-400">Field key</span>
-                            <input name="field_key" value="{{ old('field_key') }}" placeholder="competition_logo_url" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
-                        </label>
-
-                        <label class="grid gap-1">
-                            <span class="text-[11px] font-semibold text-slate-400">Label</span>
-                            <input name="label" value="{{ old('label') }}" placeholder="Logo competizione" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
-                        </label>
-
-                        <label class="grid gap-1">
-                            <span class="text-[11px] font-semibold text-slate-400">Descrizione</span>
-                            <textarea name="description" rows="3" placeholder="Spiega cosa rappresenta il campo interno." class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">{{ old('description') }}</textarea>
-                        </label>
-
-                        <div class="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
-                            <label class="grid gap-1">
-                                <span class="text-[11px] font-semibold text-slate-400">Tipo</span>
-                                <select name="data_type" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
-                                    @foreach (['string', 'integer', 'float', 'boolean', 'date', 'datetime', 'url', 'json'] as $type)
-                                        <option value="{{ $type }}" @selected(old('data_type', 'string') === $type)>{{ $type }}</option>
+                @foreach ($internalFieldsByOperation as $operation => $internalFields)
+                    <div x-show="selectedOperation === @js($operation)" x-cloak>
+                        @if ($operation === $contractOperation && ! empty($unknownContractFields))
+                            <div class="mt-3 rounded-xl bg-amber-400/10 p-3 text-xs text-amber-100 ring-1 ring-amber-400/20">
+                                <div class="font-semibold text-white">Campi nuovi rilevati nel Field mapping</div>
+                                <p class="mt-1 text-amber-100/80">Aggiungili al contratto prima di salvare il mapping.</p>
+                                <div class="mt-3 space-y-3">
+                                    @foreach ($unknownContractFields as $field)
+                                        <form method="POST" action="{{ route('admin.providers.contract-fields.store', $provider->id) }}" class="rounded-lg bg-slate-950/50 p-3">
+                                            @csrf
+                                            <input type="hidden" name="capability" value="{{ $contractCapability }}">
+                                            <input type="hidden" name="operation" value="{{ $operation }}">
+                                            <input type="hidden" name="field_key" value="{{ $field }}">
+                                            <div class="font-mono text-[11px] text-amber-100">{{ $field }}</div>
+                                            <div class="mt-2 grid gap-2">
+                                                <input name="label" value="{{ \Illuminate\Support\Str::headline($field) }}" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                                <textarea name="description" rows="2" placeholder="Descrizione del campo interno" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300"></textarea>
+                                                <div class="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
+                                                    <select name="data_type" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                                        @foreach (['url', 'string', 'integer', 'float', 'boolean', 'date', 'datetime', 'json'] as $type)
+                                                            <option value="{{ $type }}" @selected(\Illuminate\Support\Str::endsWith($field, '_url') ? $type === 'url' : $type === 'string')>{{ $type }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <input type="number" name="sort_order" value="{{ 80 + ($loop->index * 10) }}" min="0" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                                </div>
+                                                <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
+                                                    <input type="checkbox" name="is_required" value="1" class="rounded border-white/20 bg-slate-900">
+                                                    richiesto
+                                                </label>
+                                                <button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Aggiungi al contratto</button>
+                                            </div>
+                                        </form>
                                     @endforeach
-                                </select>
-                            </label>
+                                </div>
+                            </div>
+                        @endif
 
-                            <label class="grid gap-1">
-                                <span class="text-[11px] font-semibold text-slate-400">Ordine</span>
-                                <input type="number" name="sort_order" value="{{ old('sort_order', 100) }}" min="0" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
-                            </label>
-                        </div>
+                        <details class="mt-3 rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">
+                            <summary class="cursor-pointer text-sm font-semibold text-emerald-200">Aggiungi nuovo campo · {{ $operation }}</summary>
+                            <form method="POST" action="{{ route('admin.providers.contract-fields.store', $provider->id) }}" class="mt-3 grid gap-2">
+                                @csrf
+                                <input type="hidden" name="capability" value="{{ $contractCapability }}">
+                                <input type="hidden" name="operation" value="{{ $operation }}">
 
-                        <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
-                            <input type="checkbox" name="is_required" value="1" @checked(old('is_required')) class="rounded border-white/20 bg-slate-900">
-                            richiesto
-                        </label>
+                                <label class="grid gap-1">
+                                    <span class="text-[11px] font-semibold text-slate-400">Field key</span>
+                                    <input name="field_key" value="{{ old('field_key') }}" placeholder="competition_logo_url" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                </label>
 
-                        <button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Crea campo interno</button>
-                    </form>
-                </details>
-                <div class="mt-3 space-y-3">
-                    @foreach ($internalFields as $field => $info)
+                                <label class="grid gap-1">
+                                    <span class="text-[11px] font-semibold text-slate-400">Label</span>
+                                    <input name="label" value="{{ old('label') }}" placeholder="Logo competizione" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                </label>
+
+                                <label class="grid gap-1">
+                                    <span class="text-[11px] font-semibold text-slate-400">Descrizione</span>
+                                    <textarea name="description" rows="3" placeholder="Spiega cosa rappresenta il campo interno." class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">{{ old('description') }}</textarea>
+                                </label>
+
+                                <div class="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
+                                    <label class="grid gap-1">
+                                        <span class="text-[11px] font-semibold text-slate-400">Tipo</span>
+                                        <select name="data_type" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                            @foreach (['string', 'integer', 'float', 'boolean', 'date', 'datetime', 'url', 'json'] as $type)
+                                                <option value="{{ $type }}" @selected(old('data_type', 'string') === $type)>{{ $type }}</option>
+                                            @endforeach
+                                        </select>
+                                    </label>
+
+                                    <label class="grid gap-1">
+                                        <span class="text-[11px] font-semibold text-slate-400">Ordine</span>
+                                        <input type="number" name="sort_order" value="{{ old('sort_order', 100) }}" min="0" class="w-full min-w-0 rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
+                                    </label>
+                                </div>
+
+                                <label class="inline-flex items-center gap-2 text-[11px] text-slate-300">
+                                    <input type="checkbox" name="is_required" value="1" @checked(old('is_required')) class="rounded border-white/20 bg-slate-900">
+                                    richiesto
+                                </label>
+
+                                <button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Crea campo interno</button>
+                            </form>
+                        </details>
+
+                        <div class="mt-3 space-y-3">
+                    @forelse ($internalFields as $field => $info)
                         <div class="rounded-xl bg-slate-950/60 p-3 ring-1 ring-white/10">
                             <div class="flex items-center justify-between gap-3">
                                 <div>
@@ -215,6 +222,7 @@
                                     @csrf
                                     @method('PUT')
                                     <input type="hidden" name="capability" value="{{ $contractCapability }}">
+                                    <input type="hidden" name="operation" value="{{ $operation }}">
                                     <input name="label" value="{{ $info['label'] ?? $field }}" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">
                                     <textarea name="description" rows="3" class="rounded bg-white px-2 py-1 text-xs text-slate-900 ring-1 ring-slate-300">{{ $info['description'] }}</textarea>
                                     <div class="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
@@ -233,8 +241,14 @@
                                 </form>
                             </details>
                         </div>
-                    @endforeach
-                </div>
+                    @empty
+                        <div class="rounded-xl bg-slate-950/60 p-3 text-xs leading-5 text-slate-400 ring-1 ring-white/10">
+                            Nessun campo registrato per {{ $contractCapability }} · {{ $operation }}. Aggiungi i campi specifici di questa operation prima di salvare il mapping.
+                        </div>
+                    @endforelse
+                        </div>
+                    </div>
+                @endforeach
             </section>
 
             <x-fo.panel title="Guida operation" description="Capability e' la famiglia dati. Operation dice che tipo di chiamata stai configurando per quella famiglia.">

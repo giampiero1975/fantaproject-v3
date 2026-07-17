@@ -472,6 +472,15 @@ final class ProviderManagementController extends Controller
             $providerPreset,
         );
 
+        $contractCapability = $formInput['capability'] ?? 'competitions';
+        $contractOperation = $formInput['operation'] ?? 'list';
+        $operations = $this->operations();
+        $internalFieldsByOperation = collect(array_keys($operations))
+            ->mapWithKeys(fn (string $operation): array => [
+                $operation => $this->internalFieldsFor($contractCapability, $operation),
+            ])
+            ->all();
+
         $this->providerLog('http_adapter_configuration', 'debug', 'HTTP adapter configuration page resolved.', [
             'provider_id' => $provider,
             'provider_code' => $providerRow->code,
@@ -485,11 +494,12 @@ final class ProviderManagementController extends Controller
             'provider' => $providerRow,
             'metadata' => $metadata,
             'capabilities' => ['competitions', 'seasons', 'teams'],
-            'operations' => $this->operations(),
+            'operations' => $operations,
             'operationDescriptions' => $this->operationDescriptions(),
             'savedEndpoints' => $savedEndpoints,
-            'contractCapability' => $formInput['capability'] ?? 'competitions',
-            'internalFields' => $this->internalFieldsFor($formInput['capability'] ?? 'competitions'),
+            'contractCapability' => $contractCapability,
+            'contractOperation' => $contractOperation,
+            'internalFieldsByOperation' => $internalFieldsByOperation,
             'unknownContractFields' => session('unknown_contract_fields', []),
             'formInput' => $formInput,
             'testResult' => session('http_adapter_test_result'),
@@ -510,7 +520,7 @@ final class ProviderManagementController extends Controller
         $url = $this->buildProviderUrl((string) $providerRow->base_url, $data['endpoint']);
         $query = $this->parseKeyValueLines($data['query_params'] ?? '');
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
-        $unknownFields = $this->unknownContractFields($data['capability'], $fieldMappings);
+        $unknownFields = $this->unknownContractFields($data['capability'], $data['operation'], $fieldMappings);
 
         if ($unknownFields !== []) {
             return back()
@@ -636,7 +646,7 @@ final class ProviderManagementController extends Controller
         $data = $this->validateHttpAdapterInput($request);
         $query = $this->parseKeyValueLines($data['query_params'] ?? '');
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
-        $unknownFields = $this->unknownContractFields($data['capability'], $fieldMappings);
+        $unknownFields = $this->unknownContractFields($data['capability'], $data['operation'], $fieldMappings);
 
         if ($unknownFields !== []) {
             $this->providerLog('http_adapter_mapping', 'warning', 'HTTP adapter mapping save blocked: unknown contract fields.', [
@@ -656,7 +666,7 @@ final class ProviderManagementController extends Controller
                 ->withInput();
         }
 
-        $requiredFields = $this->requiredFieldsFor($data['capability']);
+        $requiredFields = $this->requiredFieldsFor($data['capability'], $data['operation']);
         $mappingStatus = $this->mappingStatus($fieldMappings, $requiredFields);
         $testResult = session('http_adapter_test_result');
         $testInput = session('http_adapter_test_input', []);
@@ -746,6 +756,7 @@ final class ProviderManagementController extends Controller
 
         $data = $request->validate([
             'capability' => ['required', 'in:competitions,seasons,teams'],
+            'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
             'field_key' => ['required', 'string', 'max:100', 'regex:/^[a-z][a-z0-9_]*$/'],
             'label' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -756,17 +767,19 @@ final class ProviderManagementController extends Controller
 
         $exists = DB::table('data_provider_contract_fields')
             ->where('capability', $data['capability'])
+            ->where('operation', $data['operation'])
             ->where('field_key', $data['field_key'])
             ->exists();
 
         if ($exists) {
             return back()
-                ->withErrors(['contract_field' => "Il campo {$data['field_key']} esiste gia nel contratto {$data['capability']}."])
+                ->withErrors(['contract_field' => "Il campo {$data['field_key']} esiste gia nel contratto {$data['capability']} · {$data['operation']}."])
                 ->withInput();
         }
 
         DB::table('data_provider_contract_fields')->insert([
             'capability' => $data['capability'],
+            'operation' => $data['operation'],
             'field_key' => $data['field_key'],
             'label' => $data['label'],
             'description' => $data['description'] ?: null,
@@ -781,6 +794,7 @@ final class ProviderManagementController extends Controller
             'provider_id' => $provider,
             'provider_code' => $providerRow->code,
             'capability' => $data['capability'],
+            'operation' => $data['operation'],
             'field_key' => $data['field_key'],
             'data_type' => $data['data_type'],
             'is_required' => (bool) ($data['is_required'] ?? false),
@@ -799,6 +813,7 @@ final class ProviderManagementController extends Controller
 
         $data = $request->validate([
             'capability' => ['required', 'in:competitions,seasons,teams'],
+            'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
             'label' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:2000'],
             'data_type' => ['required', 'in:string,integer,float,boolean,date,datetime,url,json'],
@@ -810,6 +825,7 @@ final class ProviderManagementController extends Controller
 
         $updated = DB::table('data_provider_contract_fields')
             ->where('capability', $data['capability'])
+            ->where('operation', $data['operation'])
             ->where('field_key', $fieldKey)
             ->update([
                 'label' => $data['label'],
@@ -826,6 +842,7 @@ final class ProviderManagementController extends Controller
             'provider_id' => $provider,
             'provider_code' => $providerRow->code,
             'capability' => $data['capability'],
+            'operation' => $data['operation'],
             'field_key' => $fieldKey,
             'data_type' => $data['data_type'],
             'is_required' => (bool) ($data['is_required'] ?? false),
@@ -857,9 +874,9 @@ final class ProviderManagementController extends Controller
     /**
      * @return list<string>
      */
-    private function requiredFieldsFor(string $capability): array
+    private function requiredFieldsFor(string $capability, string $operation): array
     {
-        return $this->contractFieldsFor($capability)
+        return $this->contractFieldsFor($capability, $operation)
             ->filter(fn (object $field): bool => (bool) $field->is_required)
             ->pluck('field_key')
             ->all();
@@ -868,9 +885,9 @@ final class ProviderManagementController extends Controller
     /**
      * @return array<string, array{required: bool, description: string}>
      */
-    private function internalFieldsFor(string $capability): array
+    private function internalFieldsFor(string $capability, string $operation): array
     {
-        return $this->contractFieldsFor($capability)
+        return $this->contractFieldsFor($capability, $operation)
             ->mapWithKeys(fn (object $field): array => [
                 $field->field_key => [
                     'required' => (bool) $field->is_required,
@@ -886,10 +903,11 @@ final class ProviderManagementController extends Controller
     /**
      * @return \Illuminate\Support\Collection<int, object>
      */
-    private function contractFieldsFor(string $capability): \Illuminate\Support\Collection
+    private function contractFieldsFor(string $capability, string $operation): \Illuminate\Support\Collection
     {
         return DB::table('data_provider_contract_fields')
             ->where('capability', $capability)
+            ->where('operation', $operation)
             ->orderBy('sort_order')
             ->orderBy('field_key')
             ->get(['field_key', 'label', 'description', 'data_type', 'is_required', 'sort_order']);
@@ -1073,9 +1091,9 @@ final class ProviderManagementController extends Controller
      * @param  array<string, string>  $fieldMappings
      * @return list<string>
      */
-    private function unknownContractFields(string $capability, array $fieldMappings): array
+    private function unknownContractFields(string $capability, string $operation, array $fieldMappings): array
     {
-        $allowedFields = $this->contractFieldsFor($capability)
+        $allowedFields = $this->contractFieldsFor($capability, $operation)
             ->pluck('field_key')
             ->all();
 

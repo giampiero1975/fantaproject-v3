@@ -326,6 +326,7 @@ class ProviderManagementTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        $this->copyCompetitionContractFieldsToOperation('detail');
 
         $this->actingAs($this->admin)
             ->post(route('admin.providers.http-adapter.test', $providerId), [
@@ -592,6 +593,7 @@ class ProviderManagementTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->post(route('admin.providers.contract-fields.store', $providerId), [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'field_key' => 'country_logo_url',
                 'label' => 'Logo paese',
                 'description' => 'Logo o bandiera del paese restituito dal provider.',
@@ -605,11 +607,51 @@ class ProviderManagementTest extends TestCase
 
         $this->assertDatabaseHas('data_provider_contract_fields', [
             'capability' => 'competitions',
+            'operation' => 'list',
             'field_key' => 'country_logo_url',
             'label' => 'Logo paese',
             'data_type' => 'url',
             'is_required' => 0,
             'sort_order' => 80,
+        ]);
+    }
+
+    public function test_contract_fields_are_scoped_by_capability_and_operation(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.contract-fields.store', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'detail',
+                'field_key' => 'provider_competition_code',
+                'label' => 'Codice competizione dettaglio',
+                'description' => 'Codice competizione usato nella operation detail.',
+                'data_type' => 'string',
+                'is_required' => 1,
+                'sort_order' => 10,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('data_provider_contract_fields', [
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'field_key' => 'provider_competition_code',
+            'label' => 'Chiave competizione provider',
+        ]);
+
+        $this->assertDatabaseHas('data_provider_contract_fields', [
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'field_key' => 'provider_competition_code',
+            'label' => 'Codice competizione dettaglio',
         ]);
     }
 
@@ -627,6 +669,7 @@ class ProviderManagementTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->put(route('admin.providers.contract-fields.update', [$providerId, 'competition_logo_url']), [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'label' => 'Emblema competizione',
                 'description' => 'URL dell emblema ufficiale della competizione.',
                 'data_type' => 'url',
@@ -640,6 +683,7 @@ class ProviderManagementTest extends TestCase
 
         $this->assertDatabaseHas('data_provider_contract_fields', [
             'capability' => 'competitions',
+            'operation' => 'list',
             'field_key' => 'competition_logo_url',
             'label' => 'Emblema competizione',
             'description' => 'URL dell emblema ufficiale della competizione.',
@@ -694,6 +738,7 @@ class ProviderManagementTest extends TestCase
         $this->actingAs($this->admin)
             ->post(route('admin.providers.contract-fields.store', $providerId), [
                 'capability' => 'competitions',
+                'operation' => 'list',
                 'field_key' => 'country_logo_url',
                 'label' => 'Logo paese',
                 'description' => 'Bandiera o logo del paese.',
@@ -732,6 +777,7 @@ class ProviderManagementTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        $this->copyCompetitionContractFieldsToOperation('detail');
 
         $basePayload = [
             'capability' => 'competitions',
@@ -969,5 +1015,28 @@ class ProviderManagementTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    private function copyCompetitionContractFieldsToOperation(string $operation): void
+    {
+        DB::table('data_provider_contract_fields')
+            ->where('capability', 'competitions')
+            ->where('operation', 'list')
+            ->orderBy('sort_order')
+            ->get()
+            ->each(function (object $field) use ($operation): void {
+                DB::table('data_provider_contract_fields')->insertOrIgnore([
+                    'capability' => 'competitions',
+                    'operation' => $operation,
+                    'field_key' => $field->field_key,
+                    'label' => $field->label,
+                    'description' => $field->description,
+                    'data_type' => $field->data_type,
+                    'is_required' => $field->is_required,
+                    'sort_order' => $field->sort_order,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            });
     }
 }
