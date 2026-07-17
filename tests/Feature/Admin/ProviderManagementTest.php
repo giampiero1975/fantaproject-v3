@@ -310,6 +310,92 @@ class ProviderManagementTest extends TestCase
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'search_all_leagues.php'));
     }
 
+    public function test_http_adapter_test_warns_when_successful_response_has_no_mappable_payload(): void
+    {
+        File::deleteDirectory(storage_path('logs/administration/provider_managment'));
+
+        Http::fake([
+            'api.football-data.org/*' => Http::response('', 200, ['Content-Type' => 'text/html']),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'detail',
+                'method' => 'GET',
+                'endpoint' => 'competitions/SA',
+                'query_params' => '',
+                'items_path' => '',
+                'field_mappings' => "provider_competition_code=code\ncompetition_name=name\ncountry_name=area.name",
+            ])
+            ->assertRedirect();
+
+        $result = session('http_adapter_test_result');
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame(200, $result['status']);
+        $this->assertSame(0, $result['items_count']);
+        $this->assertSame('Risposta HTTP 200, ma il corpo non e JSON valido o risulta vuoto.', $result['warning']);
+
+        $log = File::get(storage_path('logs/administration/provider_managment/provider_management.log'));
+        $this->assertStringContainsString('[http_adapter_test][warning]', $log);
+        $this->assertStringContainsString('HTTP adapter test returned no mappable payload.', $log);
+    }
+
+    public function test_http_adapter_test_log_survives_redirect_back_to_configuration_page(): void
+    {
+        File::deleteDirectory(storage_path('logs/administration/provider_managment'));
+
+        Http::fake([
+            'www.thesportsdb.com/*' => Http::response([
+                'leagues' => [
+                    [
+                        'idLeague' => '4332',
+                        'strLeague' => 'Italian Serie A',
+                        'strCountry' => 'Italy',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'thesportsdb',
+            'name' => 'TheSportsDB',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'list',
+                'method' => 'GET',
+                'endpoint' => 'search_all_leagues.php',
+                'query_params' => 'c=Italy',
+                'items_path' => 'leagues',
+                'field_mappings' => "provider_competition_code=idLeague\ncompetition_name=strLeague\ncountry_name=strCountry",
+            ])
+            ->assertRedirect();
+
+        $this->get(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertOk();
+
+        $log = File::get(storage_path('logs/administration/provider_managment/provider_management.log'));
+        $this->assertStringContainsString('[http_adapter_test][info] HTTP adapter test requested.', $log);
+        $this->assertStringContainsString('[http_adapter_configuration][info] HTTP adapter configuration page requested.', $log);
+    }
+
     public function test_http_adapter_test_request_uses_provider_credentials_for_installed_adapters(): void
     {
         Http::fake([

@@ -543,6 +543,15 @@ final class ProviderManagementController extends Controller
             $json = $response->json();
             $items = $this->extractItems($json, $data['items_path'] ?? '');
             $firstItem = $items[0] ?? null;
+            $warning = null;
+
+            if ($response->successful() && $json === null) {
+                $warning = 'Risposta HTTP 200, ma il corpo non e JSON valido o risulta vuoto.';
+            } elseif ($response->successful() && count($items) === 0) {
+                $warning = filled($data['items_path'] ?? '')
+                    ? "Risposta HTTP 200, ma nessun item trovato nel percorso items_path '{$data['items_path']}'."
+                    : 'Risposta HTTP 200, ma il payload non contiene un oggetto o una lista mappabile.';
+            }
 
             $result = [
                 'ok' => $response->successful(),
@@ -554,6 +563,7 @@ final class ProviderManagementController extends Controller
                     ? $this->mapFields($firstItem, $fieldMappings)
                     : null,
                 'raw_preview' => $this->limitPayload($json),
+                'warning' => $warning,
             ];
 
             $this->providerLog('http_adapter_test', 'info', 'HTTP adapter test completed.', [
@@ -567,6 +577,21 @@ final class ProviderManagementController extends Controller
                 'first_item_keys' => is_array($firstItem) ? array_keys($firstItem) : [],
                 'normalized_fields' => is_array($result['normalized_preview']) ? array_keys($result['normalized_preview']) : [],
             ]);
+
+            if ($warning !== null) {
+                $this->providerLog('http_adapter_test', 'warning', 'HTTP adapter test returned no mappable payload.', [
+                    'provider_id' => $provider,
+                    'provider_code' => $providerRow->code,
+                    'capability' => $data['capability'],
+                    'operation' => $data['operation'],
+                    'status' => $response->status(),
+                    'items_path' => $data['items_path'] ?? '',
+                    'json_decoded' => $json !== null,
+                    'content_type' => $response->header('content-type'),
+                    'body_preview' => Str::limit($response->body(), 500),
+                    'warning' => $warning,
+                ]);
+            }
         } catch (ConnectionException | RequestException | Throwable $e) {
             $result = [
                 'ok' => false,
@@ -576,6 +601,7 @@ final class ProviderManagementController extends Controller
                 'first_item' => null,
                 'normalized_preview' => null,
                 'raw_preview' => null,
+                'warning' => null,
                 'error' => $e->getMessage(),
             ];
 
@@ -1084,7 +1110,10 @@ final class ProviderManagementController extends Controller
         File::ensureDirectoryExists($directory);
 
         if (! request()->attributes->get('provider_management_log_initialized', false)) {
-            File::put($path, '');
+            if (! $this->shouldPreserveProviderManagementLog()) {
+                File::put($path, '');
+            }
+
             request()->attributes->set('provider_management_log_initialized', true);
         }
 
@@ -1106,6 +1135,19 @@ final class ProviderManagementController extends Controller
         ], $context);
 
         $logger->log($level, "[{$functionality}][{$level}] {$message}", $context);
+    }
+
+    private function shouldPreserveProviderManagementLog(): bool
+    {
+        if (! request()->isMethod('GET')) {
+            return false;
+        }
+
+        return session()->has('http_adapter_test_result')
+            || session()->has('http_adapter_test_input')
+            || session()->has('unknown_contract_fields')
+            || session()->has('errors')
+            || session()->has('status');
     }
 
     private function buildProviderUrl(string $baseUrl, string $endpoint): string

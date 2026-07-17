@@ -303,6 +303,10 @@
                         <div class="mt-4 rounded-xl bg-red-50 p-3 text-red-800 ring-1 ring-red-200">{{ $testResult['error'] }}</div>
                     @endif
 
+                    @if (! empty($testResult['warning']))
+                        <div class="mt-4 rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">{{ $testResult['warning'] }}</div>
+                    @endif
+
                     <h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Preview normalizzata</h3>
                     <pre class="mt-2 max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{{ json_encode($testResult['normalized_preview'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre>
 
