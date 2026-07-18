@@ -511,6 +511,33 @@ dipende dall'endpoint scelto.
 
 ### Step H - Field mapping
 
+Il formato base e':
+
+```text
+campo_interno=path_payload
+```
+
+Esempio:
+
+```text
+season_id=season.id
+start_date=season.startDate
+```
+
+Quando un campo interno deve contenere una lista estratta da un array annidato, si usa:
+
+```text
+campo_json=pluck(path_array, path_valore)
+```
+
+Esempio Football-Data, stagione con lista ID squadre:
+
+```text
+list_teams=pluck(standings.0.table, team.id)
+```
+
+Qui `standings.0.table` individua l'array da attraversare e `team.id` il valore da estrarre da ogni elemento.
+
 Per capability `competitions`:
 
 ```text

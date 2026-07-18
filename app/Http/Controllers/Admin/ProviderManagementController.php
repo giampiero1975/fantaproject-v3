@@ -1429,9 +1429,36 @@ final class ProviderManagementController extends Controller
     {
         return collect($fieldMappings)
             ->mapWithKeys(fn (string $sourcePath, string $targetField): array => [
-                $targetField => data_get($item, $sourcePath),
+                $targetField => $this->mappedValue($item, $sourcePath),
             ])
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function mappedValue(array $item, string $sourcePath): mixed
+    {
+        if (preg_match('/^pluck\(([^,]+),\s*([^)]+)\)$/', trim($sourcePath), $matches) === 1) {
+            $items = data_get($item, trim($matches[1]));
+            $valuePath = trim($matches[2]);
+
+            if (! is_array($items)) {
+                return [];
+            }
+
+            $items = Arr::isAssoc($items) ? [$items] : $items;
+
+            return collect($items)
+                ->map(fn (mixed $nestedItem): mixed => is_array($nestedItem)
+                    ? data_get($nestedItem, $valuePath)
+                    : null)
+                ->filter(fn (mixed $value): bool => $value !== null)
+                ->values()
+                ->all();
+        }
+
+        return data_get($item, $sourcePath);
     }
 
     private function limitPayload(mixed $payload): mixed
