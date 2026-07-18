@@ -626,6 +626,9 @@ Carica nel form
 
 Questa azione ricarica la pagina con `capability` e `operation` selezionate e precompila endpoint, query params, body, items path e field mapping salvati.
 
+Entrando normalmente in `Configura e testa` il form resta vuoto e serve a creare una nuova configurazione.
+Il link `Nuova configurazione` torna allo stesso stato pulito anche dopo aver caricato una chiamata salvata.
+
 La UI distingue due cancellazioni:
 
 ```text

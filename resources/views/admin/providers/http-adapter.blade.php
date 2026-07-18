@@ -34,7 +34,10 @@
                         <h2 class="font-semibold text-slate-950">Chiamate configurate</h2>
                         <p class="mt-1 text-xs leading-5 text-slate-500">Queste sono le configurazioni HTTP gia salvate per il provider. Usa Carica nel form per riprenderne una.</p>
                     </div>
-                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ $savedEndpoints->count() }} salvate</span>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="{{ route('admin.providers.http-adapter.configure', ['provider' => $provider->id, 'new' => 1]) }}" class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50">Nuova configurazione</a>
+                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ $savedEndpoints->count() }} salvate</span>
+                    </div>
                 </div>
 
                 <div class="mt-4 space-y-2">

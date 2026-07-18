@@ -490,14 +490,26 @@ final class ProviderManagementController extends Controller
 
                 return $endpoint;
             });
-        $currentCapability = (string) $request->query('capability', session('http_adapter_test_input.capability', 'competitions'));
-        $currentOperation = (string) $request->query('operation', session('http_adapter_test_input.operation', 'list'));
-        $currentEndpoint = $savedEndpoints
-            ->where('capability', $currentCapability)
-            ->firstWhere('operation', $currentOperation);
-        $providerPreset = $this->httpAdapterPreset($providerRow->code);
+        $isNewForm = $request->boolean('new');
+        $isLoadingSavedEndpoint = ! $isNewForm
+            && $request->filled('capability')
+            && $request->filled('operation');
+        $sessionInput = $isNewForm ? [] : session('http_adapter_test_input', []);
+
+        $currentCapability = (string) ($isLoadingSavedEndpoint
+            ? $request->query('capability')
+            : ($sessionInput['capability'] ?? 'competitions'));
+        $currentOperation = (string) ($isLoadingSavedEndpoint
+            ? $request->query('operation')
+            : ($sessionInput['operation'] ?? 'list'));
+        $currentEndpoint = $isLoadingSavedEndpoint
+            ? $savedEndpoints
+                ->where('capability', $currentCapability)
+                ->firstWhere('operation', $currentOperation)
+            : null;
+        $providerPreset = $this->httpAdapterPreset();
         $formInput = $this->httpAdapterFormInput(
-            session('http_adapter_test_input', []),
+            $sessionInput,
             $currentEndpoint,
             $providerPreset,
         );
@@ -518,6 +530,8 @@ final class ProviderManagementController extends Controller
             'current_capability' => $currentCapability,
             'current_operation' => $currentOperation,
             'current_endpoint_id' => $currentEndpoint?->id,
+            'is_new_form' => $isNewForm,
+            'is_loading_saved_endpoint' => $isLoadingSavedEndpoint,
         ]);
 
         return view('admin.providers.http-adapter', [
@@ -1126,50 +1140,20 @@ final class ProviderManagementController extends Controller
     /**
      * @return array<string, string>
      */
-    private function httpAdapterPreset(string $providerCode): array
+    private function httpAdapterPreset(): array
     {
-        return match ($providerCode) {
-            'football_data' => [
-                'capability' => 'competitions',
-                'operation' => 'list',
-                'method' => 'GET',
-                'endpoint' => 'competitions',
-                'query_params' => '',
-                'body_template' => '',
-                'items_path' => '',
-                'field_mappings' => '',
-            ],
-            'api_football' => [
-                'capability' => 'competitions',
-                'operation' => 'list',
-                'method' => 'GET',
-                'endpoint' => 'leagues',
-                'query_params' => 'id=135',
-                'body_template' => '',
-                'items_path' => '',
-                'field_mappings' => '',
-            ],
-            'thesportsdb' => [
-                'capability' => 'competitions',
-                'operation' => 'list',
-                'method' => 'GET',
-                'endpoint' => 'search_all_leagues.php',
-                'query_params' => 'c=Italy',
-                'body_template' => '',
-                'items_path' => '',
-                'field_mappings' => '',
-            ],
-            default => [
-                'capability' => 'competitions',
-                'operation' => 'list',
-                'method' => 'GET',
-                'endpoint' => '',
-                'query_params' => '',
-                'body_template' => '',
-                'items_path' => '',
-                'field_mappings' => '',
-            ],
-        };
+        return [
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'label' => '',
+            'method' => 'GET',
+            'endpoint' => '',
+            'query_params' => '',
+            'body_template' => '',
+            'test_variables' => '',
+            'items_path' => '',
+            'field_mappings' => '',
+        ];
     }
 
     /**

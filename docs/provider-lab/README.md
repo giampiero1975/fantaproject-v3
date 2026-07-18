@@ -155,6 +155,8 @@ stato mapping
 
 La pagina `Configura e testa` mostra in alto il blocco `Chiamate configurate`.
 Da li' si usa `Carica nel form` per riprendere una configurazione esistente e ritestarla o modificarla.
+Entrando normalmente nella pagina il form resta vuoto per creare una nuova configurazione.
+Il pulsante `Nuova configurazione` riporta sempre al form pulito, anche dopo aver caricato una chiamata salvata.
 
 ## Stati da riportare in Laravel
 

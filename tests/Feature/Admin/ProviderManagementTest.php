@@ -1072,7 +1072,7 @@ class ProviderManagementTest extends TestCase
             ->count());
     }
 
-    public function test_http_adapter_page_prefills_saved_mapping_instead_of_placeholders(): void
+    public function test_http_adapter_page_starts_with_empty_form_when_saved_mapping_exists(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
             'code' => 'football_data',
@@ -1088,7 +1088,7 @@ class ProviderManagementTest extends TestCase
             'capability' => 'competitions',
             'operation' => 'list',
             'method' => 'GET',
-            'endpoint' => 'competitions',
+            'endpoint' => 'competitions/saved-default',
             'query_params' => null,
             'body_template' => null,
             'items_path' => 'competitions',
@@ -1119,11 +1119,11 @@ class ProviderManagementTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.providers.http-adapter.configure', $providerId))
             ->assertOk()
-            ->assertSee('value="competitions"', false)
-            ->assertSee('provider_competition_code=code')
-            ->assertSee('country_name=area.name')
-            ->assertDontSee('provider_competition_code=idLeague')
-            ->assertDontSee('c=Italy');
+            ->assertSee('competitions/saved-default')
+            ->assertSee('Nuova configurazione')
+            ->assertSee('name="endpoint" x-ref="endpoint" value=""', false)
+            ->assertDontSee('provider_competition_code=code')
+            ->assertDontSee('country_name=area.name');
     }
 
     public function test_http_adapter_page_lists_saved_calls_above_the_form(): void
