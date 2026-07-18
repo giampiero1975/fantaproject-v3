@@ -103,6 +103,11 @@
                                             <div class="mt-1 break-all font-mono text-blue-700">?{{ http_build_query($httpMapping->query_params_decoded) }}</div>
                                         @endif
                                         <div class="mt-2 text-blue-800">Items: <code>{{ $httpMapping->items_path ?: 'root object' }}</code> · Campi: {{ count($httpMapping->field_mappings_decoded) }}</div>
+                                        <form method="POST" action="{{ route('admin.providers.http-adapter.destroy', [$provider->id, $httpMapping->id]) }}" class="mt-3" onsubmit="return confirm('Eliminare questa configurazione HTTP salvata? Verranno rimossi anche i mapping dei campi collegati.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="rounded-lg bg-red-50 px-3 py-1.5 font-semibold text-red-700 ring-1 ring-red-200 hover:bg-red-100">Elimina configurazione</button>
+                                        </form>
                                     </div>
                                 @empty
                                     <p class="rounded-lg bg-white/60 p-3 text-xs text-blue-800 ring-1 ring-blue-100">Nessuna chiamata HTTP configurata.</p>

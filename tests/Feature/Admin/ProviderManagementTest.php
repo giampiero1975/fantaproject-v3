@@ -1387,7 +1387,8 @@ class ProviderManagementTest extends TestCase
             ->assertSee('competitions/{provider_competition_code}/standings')
             ->assertSee('season=%7Bseason_year%7D')
             ->assertSee('Items:')
-            ->assertSee('standings.0.table');
+            ->assertSee('standings.0.table')
+            ->assertSee('Elimina configurazione');
     }
 
     public function test_provider_without_adapter_cannot_be_activated(): void

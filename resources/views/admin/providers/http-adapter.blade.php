@@ -63,6 +63,11 @@
                                     {{ $endpoint->mapping_validation_status ?? $endpoint->validation_status }}
                                 </span>
                                 <a href="{{ route('admin.providers.http-adapter.configure', ['provider' => $provider->id, 'capability' => $endpoint->capability, 'operation' => $endpoint->operation]) }}" class="inline-flex rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-700">Carica nel form</a>
+                                <form method="POST" action="{{ route('admin.providers.http-adapter.destroy', [$provider->id, $endpoint->id]) }}" onsubmit="return confirm('Eliminare questa configurazione HTTP salvata? Verranno rimossi anche i mapping dei campi collegati.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button class="inline-flex rounded-lg bg-red-50 px-3 py-1.5 font-semibold text-red-700 ring-1 ring-red-200 hover:bg-red-100">Elimina configurazione</button>
+                                </form>
                             </div>
                         </article>
                     @empty
@@ -373,10 +378,10 @@
                                 <div><dt class="text-slate-500">Ultimo status</dt><dd>{{ $endpoint->last_status_code ?? 'non testato' }}</dd></div>
                                 <div><dt class="text-slate-500">Campi</dt><dd class="font-mono">{{ implode(', ', array_keys($endpoint->field_mappings_decoded)) ?: 'nessuno' }}</dd></div>
                             </dl>
-                            <form method="POST" action="{{ route('admin.providers.http-adapter.destroy', [$provider->id, $endpoint->id]) }}" class="mt-3" onsubmit="return confirm('Eliminare questo mapping runtime?');">
+                            <form method="POST" action="{{ route('admin.providers.http-adapter.destroy', [$provider->id, $endpoint->id]) }}" class="mt-3" onsubmit="return confirm('Eliminare questa configurazione HTTP salvata? Verranno rimossi anche i mapping dei campi collegati.');">
                                 @csrf
                                 @method('DELETE')
-                                <button class="rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 ring-1 ring-red-400/20 hover:bg-red-500/25">Elimina mapping</button>
+                                <button class="rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 ring-1 ring-red-400/20 hover:bg-red-500/25">Elimina configurazione</button>
                             </form>
                         </div>
                     @empty
