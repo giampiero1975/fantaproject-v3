@@ -1223,6 +1223,8 @@ class ProviderManagementTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee('value="Classifica per competizione"', false)
+            ->assertSee('Campi interni ·')
+            ->assertSee('Classifica per competizione')
             ->assertSee('value="competitions/{provider_competition_code}/standings"', false)
             ->assertSee('season={season_year}')
             ->assertSee('value="standings.0.table"', false)

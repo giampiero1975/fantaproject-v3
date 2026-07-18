@@ -11,10 +11,17 @@
 
     <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]"
          x-data="{
+             selectedCapability: @js($formInput['capability'] ?? 'competitions'),
              selectedOperation: @js($formInput['operation'] ?? 'list'),
+             selectedLabel: @js($formInput['label'] ?? ''),
              operationHelp: @js($operationDescriptions),
+             contractTitle() {
+                 const label = (this.selectedLabel || '').trim();
+
+                 return label || `${this.selectedCapability} · ${this.selectedOperation}`;
+             },
              clearOperationFields() {
-                 this.$refs.label.value = '';
+                 this.selectedLabel = '';
                  this.$refs.endpoint.value = '';
                  this.$refs.queryParams.value = '';
                  this.$refs.bodyTemplate.value = '';
@@ -83,7 +90,7 @@
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Capability</span>
-                    <select name="capability" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                    <select name="capability" x-model="selectedCapability" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
                         @foreach ($capabilities as $capability)
                             <option value="{{ $capability }}" @selected(($formInput['capability'] ?? 'competitions') === $capability)>{{ $capability }}</option>
                         @endforeach
@@ -102,7 +109,7 @@
 
                 <label class="space-y-1 md:col-span-2">
                     <span class="text-xs font-medium text-slate-700">Nome configurazione</span>
-                    <input name="label" x-ref="label" value="{{ $formInput['label'] ?? '' }}" placeholder="es. Lista competizioni Football-Data" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                    <input name="label" x-ref="label" x-model="selectedLabel" value="{{ $formInput['label'] ?? '' }}" placeholder="es. Lista competizioni Football-Data" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
                     <span class="block text-[11px] text-slate-500">Nome leggibile per riconoscere la chiamata salvata. Se vuoto viene mostrato capability · operation.</span>
                 </label>
 
@@ -186,7 +193,10 @@
             </section>
 
             <section class="rounded-2xl bg-slate-800/70 p-5 text-sm text-slate-200 shadow-lg shadow-black/10">
-                <h2 class="font-semibold text-white">Campi interni · {{ $contractCapability }} · <span x-text="selectedOperation"></span></h2>
+                <h2 class="font-semibold text-white">
+                    Campi interni ·
+                    <span x-text="contractTitle()">{{ ($formInput['label'] ?? '') !== '' ? $formInput['label'] : "{$contractCapability} · {$contractOperation}" }}</span>
+                </h2>
                 <p class="mt-1 text-xs leading-5 text-slate-400">Questi campi appartengono solo alla operation selezionata. Cambiando operation cambia anche il contratto interno visualizzato.</p>
                 @error('contract_field')
                     <div class="mt-3 rounded-xl bg-red-400/10 p-3 text-xs text-red-200 ring-1 ring-red-400/20">{{ $message }}</div>
