@@ -76,6 +76,69 @@ items_path = vuoto
 
 `items_path` serve solo a dire dove si trova la lista nel JSON. Se l'endpoint restituisce un singolo oggetto, resta vuoto.
 
+## Template runtime e valori test
+
+Nel Provider Management Laravel gli endpoint vanno salvati come template riutilizzabili quando contengono parti variabili.
+
+Esempio Football-Data standings:
+
+```text
+endpoint = competitions/{provider_competition_code}/standings
+query_params = season={season_year}
+items_path = standings.0.table
+```
+
+Per testare dalla UI si compila il campo `Valori test variabili`:
+
+```text
+provider_competition_code=SA
+season_year=2024
+```
+
+Il test chiama:
+
+```text
+competitions/SA/standings?season=2024
+```
+
+ma il salvataggio runtime mantiene i placeholder:
+
+```json
+{"season":"{season_year}"}
+```
+
+Regola pratica:
+
+```text
+Endpoint / Query params / Body JSON = configurazione salvata
+Valori test variabili              = solo prova manuale
+```
+
+Se in `Query params` si scrive:
+
+```text
+season=2024
+```
+
+la stagione viene cablata. Se invece si scrive:
+
+```text
+season={season_year}
+```
+
+il runtime potra' sostituire la stagione in base al contesto applicativo.
+
+## Pulizia in Laravel
+
+Da `Provider Management -> Configura e testa` e' possibile:
+
+- eliminare un mapping runtime salvato;
+- eliminare un campo interno del contratto.
+
+L'eliminazione mapping rimuove endpoint e payload mapping.
+
+L'eliminazione del campo interno e' bloccata se quel campo e' ancora usato da un mapping salvato.
+
 ## Stati da riportare in Laravel
 
 ```text

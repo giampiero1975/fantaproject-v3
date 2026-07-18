@@ -160,10 +160,14 @@ La pagina permette di:
 - scegliere capability;
 - scegliere operation;
 - configurare method, endpoint, query params e body;
+- usare variabili template in endpoint, query params e body;
+- indicare valori di test temporanei per risolvere le variabili;
 - impostare `items_path`;
 - dichiarare un primo field mapping;
 - lanciare una test request;
 - vedere status, URL risolto, primo item raw e preview normalizzata.
+- eliminare mapping runtime salvati;
+- aggiungere, modificare ed eliminare i campi del contratto interno.
 
 La pagina salva il mapping runtime nel database applicativo. Bruno resta il laboratorio versionato, ma Laravel e' la fonte runtime.
 
@@ -296,11 +300,9 @@ Campi:
 ```text
 method
 endpoint
-auth_mode
-headers
 query_params
 body_template
-timeout
+test_variables
 ```
 
 Esempio:
@@ -312,7 +314,114 @@ query:
   c = Italy
 ```
 
-### Step D - Variabili disponibili
+### Step D - Template e valori di test
+
+Endpoint, query params e body JSON possono contenere variabili dichiarate con parentesi graffe.
+
+Esempio:
+
+```text
+endpoint:
+competitions/{provider_competition_code}/standings
+
+query_params:
+season={season_year}
+```
+
+La UI non indovina quali parti dell'URL siano variabili. La differenza e' esplicita:
+
+```text
+competitions/SA/standings
+```
+
+e' una URL fissa: `SA` resta sempre `SA`.
+
+```text
+competitions/{provider_competition_code}/standings
+```
+
+e' un template: il runtime dovra' sostituire `{provider_competition_code}` con il valore reale.
+
+Per provare subito il template da UI si usa il campo:
+
+```text
+Valori test variabili
+```
+
+Esempio:
+
+```text
+provider_competition_code=SA
+season_year=2024
+```
+
+Questi valori vengono usati solo dal pulsante `Test request`. Non vengono salvati nella configurazione runtime.
+
+Regola operativa:
+
+```text
+Endpoint / Query params / Body JSON = configurazione salvata
+Valori test variabili              = valori temporanei per la prova
+```
+
+Quindi:
+
+```text
+query_params:
+season=2024
+```
+
+salva in DB:
+
+```json
+{"season":"2024"}
+```
+
+e cabla la stagione 2024.
+
+Invece:
+
+```text
+query_params:
+season={season_year}
+```
+
+salva in DB:
+
+```json
+{"season":"{season_year}"}
+```
+
+e lascia al runtime la sostituzione della stagione corretta.
+
+Esempio Football-Data standings:
+
+```text
+capability: standings
+operation: by_competition
+method: GET
+endpoint: competitions/{provider_competition_code}/standings
+query_params: season={season_year}
+test_variables:
+  provider_competition_code=SA
+  season_year=2024
+items_path: standings.0.table
+```
+
+Durante il test viene chiamato:
+
+```text
+https://api.football-data.org/v4/competitions/SA/standings?season=2024
+```
+
+Nel DB resta salvato:
+
+```text
+endpoint = competitions/{provider_competition_code}/standings
+query_params = {"season":"{season_year}"}
+```
+
+### Step E - Variabili disponibili
 
 La UI deve mostrare quali variabili possono essere usate.
 
@@ -322,25 +431,36 @@ Per `competitions`:
 {country_name}
 {country_code}
 {league_name}
+{provider_competition_code}
+{provider_competition_id}
 ```
 
 Per `seasons`:
 
 ```text
-{provider_league_id}
-{provider_league_name}
+{provider_competition_code}
+{provider_competition_id}
+{season_year}
 ```
 
 Per `teams`:
 
 ```text
-{provider_league_id}
-{provider_league_name}
+{provider_competition_code}
+{provider_competition_id}
 {season_key}
 {season_year}
 ```
 
-### Step E - Test Request
+Per `standings`:
+
+```text
+{provider_competition_code}
+{provider_competition_id}
+{season_year}
+```
+
+### Step F - Test Request
 
 Pulsante:
 
@@ -352,6 +472,7 @@ Mostra:
 
 ```text
 resolved_url
+resolved_query
 status_code
 headers principali
 raw_json
@@ -360,7 +481,7 @@ errore eventuale
 
 La test request non salva dati di dominio.
 
-### Step F - Response selector
+### Step G - Response selector
 
 Campi:
 
@@ -384,7 +505,7 @@ items_path = leagues
 
 dipende dall'endpoint scelto.
 
-### Step G - Field mapping
+### Step H - Field mapping
 
 Per capability `competitions`:
 
@@ -422,7 +543,7 @@ founded_path
 venue_path
 ```
 
-### Step G - Preview normalizzata
+### Step I - Preview normalizzata
 
 Dopo il mapping, la UI mostra:
 
@@ -460,7 +581,7 @@ area.id = 2114
 
 e' l'ID numerico dell'area/paese. Non va confuso con l'ID della competizione.
 
-### Step H - Salvataggio
+### Step L - Salvataggio
 
 Salva:
 
@@ -473,6 +594,37 @@ response mapping
 test sample
 validation status
 ```
+
+Il salvataggio mantiene i placeholder. I `test_variables` non vengono persistiti.
+
+### Step M - Pulizia configurazioni
+
+La UI distingue due cancellazioni:
+
+```text
+Elimina mapping
+```
+
+Cancella:
+
+```text
+data_provider_http_endpoints
+data_provider_payload_mappings
+```
+
+Serve a rimuovere una configurazione runtime sbagliata o non piu' utile.
+
+```text
+Elimina campo interno
+```
+
+Cancella da:
+
+```text
+data_provider_contract_fields
+```
+
+solo se il campo non e' usato da un mapping salvato. Se il campo compare in `field_mappings`, la cancellazione viene bloccata e l'admin deve prima eliminare o modificare il mapping runtime.
 
 ---
 
@@ -588,6 +740,15 @@ Vincoli:
 ```text
 unique(data_provider_id, capability, operation)
 ```
+
+`endpoint`, `query_params` e `body_template` possono contenere placeholder runtime come:
+
+```text
+{provider_competition_code}
+{season_year}
+```
+
+I valori concreti usati per il test manuale non vengono salvati in questa tabella.
 
 ### `data_provider_payload_mappings`
 

@@ -288,6 +288,53 @@ Se l'adapter non esiste ancora, il provider puo' comunque essere registrato manu
 
 I provider DB-only non sono attivabili dalla UI: il bottone resta disabilitato finche' non viene installato l'adapter PHP.
 
+### Provider HTTP Adapter Lab
+
+Da `Provider Management -> Configura e testa` e' possibile configurare endpoint HTTP generici salvati nel DB.
+
+La configurazione runtime e' composta da:
+
+- capability;
+- operation;
+- method;
+- endpoint;
+- query params;
+- body JSON;
+- items path;
+- field mapping;
+- contratto interno.
+
+Endpoint, query params e body possono contenere placeholder:
+
+```text
+competitions/{provider_competition_code}/standings
+season={season_year}
+```
+
+Il campo `Valori test variabili` serve solo per la prova manuale:
+
+```text
+provider_competition_code=SA
+season_year=2024
+```
+
+Il test chiama l'URL risolto, ma il salvataggio mantiene i placeholder in `data_provider_http_endpoints`.
+
+Esempio:
+
+```text
+endpoint = competitions/{provider_competition_code}/standings
+query_params = {"season":"{season_year}"}
+items_path = standings.0.table
+```
+
+Se invece in query params si salva `season=2024`, la stagione resta cablata a 2024.
+
+La pagina consente anche la pulizia:
+
+- `Elimina mapping`: rimuove endpoint e payload mapping runtime;
+- `Elimina campo interno`: rimuove un campo da `data_provider_contract_fields` solo se non e' usato da mapping salvati.
+
 ### Analizza senza scrivere
 
 - esegue `season:sync` in dry-run;
