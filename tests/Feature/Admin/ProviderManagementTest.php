@@ -934,6 +934,59 @@ class ProviderManagementTest extends TestCase
             ->assertDontSee('c=Italy');
     }
 
+    public function test_admin_can_delete_saved_http_adapter_mapping(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'method' => 'GET',
+            'endpoint' => 'competitions/SA',
+            'query_params' => null,
+            'body_template' => null,
+            'items_path' => null,
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'provider_competition_code' => 'code',
+                'competition_name' => 'name',
+                'country_name' => 'area.name',
+            ]),
+            'required_fields' => json_encode(['provider_competition_code', 'competition_name', 'country_name']),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->delete(route('admin.providers.http-adapter.destroy', [$providerId, $endpointId]))
+            ->assertRedirect(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertSessionHas('status', 'Mapping competitions · detail eliminato.');
+
+        $this->assertDatabaseMissing('data_provider_http_endpoints', [
+            'id' => $endpointId,
+        ]);
+
+        $this->assertDatabaseMissing('data_provider_payload_mappings', [
+            'data_provider_http_endpoint_id' => $endpointId,
+        ]);
+    }
+
     public function test_provider_management_distinguishes_league_mappings_from_http_mappings(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

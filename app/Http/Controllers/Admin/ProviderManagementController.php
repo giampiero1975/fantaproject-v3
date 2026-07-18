@@ -750,6 +750,50 @@ final class ProviderManagementController extends Controller
             ->with('http_adapter_test_result', $testResult);
     }
 
+    public function destroyHttpAdapter(int $provider, int $endpoint): RedirectResponse
+    {
+        $providerRow = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($providerRow, 404);
+
+        $endpointRow = DB::table('data_provider_http_endpoints')
+            ->where('id', $endpoint)
+            ->where('data_provider_id', $provider)
+            ->first();
+
+        abort_unless($endpointRow, 404);
+
+        $this->providerLog('http_adapter_mapping', 'info', 'HTTP adapter mapping delete requested.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'endpoint_id' => $endpoint,
+            'capability' => $endpointRow->capability,
+            'operation' => $endpointRow->operation,
+            'endpoint' => $endpointRow->endpoint,
+        ]);
+
+        DB::transaction(function () use ($endpoint): void {
+            DB::table('data_provider_payload_mappings')
+                ->where('data_provider_http_endpoint_id', $endpoint)
+                ->delete();
+
+            DB::table('data_provider_http_endpoints')
+                ->where('id', $endpoint)
+                ->delete();
+        });
+
+        $this->providerLog('http_adapter_mapping', 'info', 'HTTP adapter mapping deleted.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'endpoint_id' => $endpoint,
+            'capability' => $endpointRow->capability,
+            'operation' => $endpointRow->operation,
+        ]);
+
+        return redirect()
+            ->route('admin.providers.http-adapter.configure', $provider)
+            ->with('status', "Mapping {$endpointRow->capability} · {$endpointRow->operation} eliminato.");
+    }
+
     public function storeContractField(Request $request, int $provider): RedirectResponse
     {
         $providerRow = DB::table('data_providers')->where('id', $provider)->first();

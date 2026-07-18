@@ -308,6 +308,11 @@
                                 <div><dt class="text-slate-500">Ultimo status</dt><dd>{{ $endpoint->last_status_code ?? 'non testato' }}</dd></div>
                                 <div><dt class="text-slate-500">Campi</dt><dd class="font-mono">{{ implode(', ', array_keys($endpoint->field_mappings_decoded)) ?: 'nessuno' }}</dd></div>
                             </dl>
+                            <form method="POST" action="{{ route('admin.providers.http-adapter.destroy', [$provider->id, $endpoint->id]) }}" class="mt-3" onsubmit="return confirm('Eliminare questo mapping runtime?');">
+                                @csrf
+                                @method('DELETE')
+                                <button class="rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 ring-1 ring-red-400/20 hover:bg-red-500/25">Elimina mapping</button>
+                            </form>
                         </div>
                     @empty
                         <p class="text-slate-400">Nessun mapping runtime salvato.</p>
