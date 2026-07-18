@@ -139,6 +139,22 @@ L'eliminazione mapping rimuove endpoint e payload mapping.
 
 L'eliminazione del campo interno e' bloccata se quel campo e' ancora usato da un mapping salvato.
 
+## Visibilita' configurazioni salvate
+
+La lista Provider Management mostra il contenuto delle chiamate HTTP salvate, non solo il numero di mapping:
+
+```text
+capability · operation
+method endpoint
+query params
+items path
+numero campi mappati
+stato mapping
+```
+
+La pagina `Configura e testa` mostra in alto il blocco `Chiamate configurate`.
+Da li' si usa `Carica nel form` per riprendere una configurazione esistente e ritestarla o modificarla.
+
 ## Stati da riportare in Laravel
 
 ```text

@@ -27,6 +27,57 @@
                 <p class="mt-2 leading-5">Parti da <strong>competitions</strong>. Solo dopo aver collegato la competizione esterna alla lega interna ha senso configurare seasons e teams.</p>
             </div>
 
+            <section class="mt-5 rounded-xl bg-white p-4 ring-1 ring-slate-300">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="font-semibold text-slate-950">Chiamate configurate</h2>
+                        <p class="mt-1 text-xs leading-5 text-slate-500">Queste sono le configurazioni HTTP gia salvate per il provider. Usa Carica nel form per riprenderne una.</p>
+                    </div>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ $savedEndpoints->count() }} salvate</span>
+                </div>
+
+                <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                    @forelse ($savedEndpoints as $endpoint)
+                        <article class="rounded-xl bg-slate-50 p-3 text-xs ring-1 ring-slate-200">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <div class="font-semibold text-slate-950">{{ $endpoint->capability }} · {{ $endpoint->operation }}</div>
+                                    <div class="mt-1 break-all font-mono text-slate-700">{{ $endpoint->method }} {{ $endpoint->endpoint }}</div>
+                                </div>
+                                <span class="rounded-full px-2 py-0.5 font-semibold {{ $endpoint->is_enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                    {{ $endpoint->mapping_validation_status ?? $endpoint->validation_status }}
+                                </span>
+                            </div>
+
+                            <dl class="mt-3 grid gap-2 text-slate-700">
+                                <div>
+                                    <dt class="font-semibold text-slate-500">Query</dt>
+                                    <dd class="break-all font-mono">{{ ! empty($endpoint->query_params_decoded) ? http_build_query($endpoint->query_params_decoded) : 'nessuna' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-semibold text-slate-500">Items path</dt>
+                                    <dd class="font-mono">{{ $endpoint->items_path ?: 'root object' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-semibold text-slate-500">Campi mappati</dt>
+                                    <dd>{{ count($endpoint->field_mappings_decoded) }} · <span class="font-mono">{{ implode(', ', array_keys($endpoint->field_mappings_decoded)) ?: 'nessuno' }}</span></dd>
+                                </div>
+                                <div>
+                                    <dt class="font-semibold text-slate-500">Ultimo test</dt>
+                                    <dd>{{ $endpoint->last_status_code ?? 'non testato' }}</dd>
+                                </div>
+                            </dl>
+
+                            <a href="{{ route('admin.providers.http-adapter.configure', ['provider' => $provider->id, 'capability' => $endpoint->capability, 'operation' => $endpoint->operation]) }}" class="mt-3 inline-flex rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">Carica nel form</a>
+                        </article>
+                    @empty
+                        <div class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200 lg:col-span-2">
+                            Nessuna chiamata configurata. Salva il primo mapping runtime dopo un test valido.
+                        </div>
+                    @endforelse
+                </div>
+            </section>
+
             <form method="POST" class="mt-5 grid gap-4 md:grid-cols-2" data-http-adapter-form>
                 @csrf
 

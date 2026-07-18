@@ -1124,6 +1124,105 @@ class ProviderManagementTest extends TestCase
             ->assertDontSee('c=Italy');
     }
 
+    public function test_http_adapter_page_lists_saved_calls_above_the_form(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'by_competition',
+            'method' => 'GET',
+            'endpoint' => 'competitions/{provider_competition_code}/standings',
+            'query_params' => json_encode(['season' => '{season_year}']),
+            'body_template' => null,
+            'items_path' => 'standings.0.table',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'last_status_code' => 200,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'competition_name' => 'name',
+            ]),
+            'required_fields' => json_encode([]),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertOk()
+            ->assertSee('Chiamate configurate')
+            ->assertSee('competitions · by_competition')
+            ->assertSee('competitions/{provider_competition_code}/standings')
+            ->assertSee('season=%7Bseason_year%7D')
+            ->assertSee('standings.0.table')
+            ->assertSee('Carica nel form');
+    }
+
+    public function test_http_adapter_saved_call_can_be_loaded_into_form_by_operation(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'by_competition',
+            'method' => 'GET',
+            'endpoint' => 'competitions/{provider_competition_code}/standings',
+            'query_params' => json_encode(['season' => '{season_year}']),
+            'body_template' => null,
+            'items_path' => 'standings.0.table',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'competition_name' => 'name',
+            ]),
+            'required_fields' => json_encode([]),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.http-adapter.configure', [
+                'provider' => $providerId,
+                'capability' => 'competitions',
+                'operation' => 'by_competition',
+            ]))
+            ->assertOk()
+            ->assertSee('value="competitions/{provider_competition_code}/standings"', false)
+            ->assertSee('season={season_year}')
+            ->assertSee('value="standings.0.table"', false)
+            ->assertSee('competition_name=name');
+    }
+
     public function test_admin_can_delete_saved_http_adapter_mapping(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
@@ -1221,6 +1320,66 @@ class ProviderManagementTest extends TestCase
             ->assertSee('Mapping leghe:')
             ->assertSee('HTTP mapping:')
             ->assertDontSee('Mapping: 0');
+    }
+
+    public function test_provider_management_shows_saved_http_mapping_details(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+            'priority' => 10,
+            'role' => 'primary',
+            'base_url' => 'https://api.football-data.org/v4',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'by_competition',
+            'method' => 'GET',
+            'endpoint' => 'competitions/{provider_competition_code}/standings',
+            'query_params' => json_encode(['season' => '{season_year}']),
+            'items_path' => 'standings.0.table',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'competition_name' => 'name',
+            ]),
+            'required_fields' => json_encode([]),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.index'))
+            ->assertOk()
+            ->assertSee('competitions · by_competition')
+            ->assertSee('competitions/{provider_competition_code}/standings')
+            ->assertSee('season=%7Bseason_year%7D')
+            ->assertSee('Items:')
+            ->assertSee('standings.0.table');
     }
 
     public function test_provider_without_adapter_cannot_be_activated(): void

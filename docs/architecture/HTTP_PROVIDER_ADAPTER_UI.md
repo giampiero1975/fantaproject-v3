@@ -166,6 +166,8 @@ La pagina permette di:
 - dichiarare un primo field mapping;
 - lanciare una test request;
 - vedere status, URL risolto, primo item raw e preview normalizzata.
+- vedere subito le chiamate HTTP gia' configurate con endpoint, query, items path e campi mappati;
+- caricare una configurazione salvata nel form per modificarla o ritestarla;
 - eliminare mapping runtime salvati;
 - aggiungere, modificare ed eliminare i campi del contratto interno.
 
@@ -598,6 +600,27 @@ validation status
 Il salvataggio mantiene i placeholder. I `test_variables` non vengono persistiti.
 
 ### Step M - Pulizia configurazioni
+
+La pagina `Provider Management` non deve mostrare solo il conteggio `HTTP mapping`.
+Per ogni provider deve mostrare anche il contenuto minimo delle chiamate configurate:
+
+```text
+capability
+operation
+method + endpoint
+query params
+items_path
+numero campi mappati
+stato mapping
+```
+
+La pagina `Configura e testa` mostra lo stesso riepilogo in alto, prima del form, con l'azione:
+
+```text
+Carica nel form
+```
+
+Questa azione ricarica la pagina con `capability` e `operation` selezionate e precompila endpoint, query params, body, items path e field mapping salvati.
 
 La UI distingue due cancellazioni:
 

@@ -82,9 +82,34 @@ final class ProviderManagementController extends Controller
 
                 $provider->credentials = $credentials;
                 $provider->mappings = $mappings;
-                $provider->http_mappings_count = DB::table('data_provider_http_endpoints')
+                $httpMappings = DB::table('data_provider_http_endpoints as e')
+                    ->leftJoin('data_provider_payload_mappings as m', 'm.data_provider_http_endpoint_id', '=', 'e.id')
                     ->where('data_provider_id', $provider->id)
-                    ->count();
+                    ->orderBy('e.capability')
+                    ->orderBy('e.operation')
+                    ->get([
+                        'e.id',
+                        'e.capability',
+                        'e.operation',
+                        'e.method',
+                        'e.endpoint',
+                        'e.query_params',
+                        'e.items_path',
+                        'e.is_enabled',
+                        'e.validation_status',
+                        'e.last_status_code',
+                        'm.field_mappings',
+                        'm.validation_status as mapping_validation_status',
+                    ])
+                    ->map(function (object $endpoint): object {
+                        $endpoint->query_params_decoded = json_decode((string) $endpoint->query_params, true) ?: [];
+                        $endpoint->field_mappings_decoded = json_decode((string) $endpoint->field_mappings, true) ?: [];
+
+                        return $endpoint;
+                    });
+
+                $provider->http_mappings = $httpMappings;
+                $provider->http_mappings_count = $httpMappings->count();
                 $provider->adapter_supported = app(ProviderAdapterDefinitionRepository::class)->findInstalled($provider->code) !== null;
                 $provider->metadata_decoded = json_decode((string) $provider->metadata, true) ?: [];
                 $settings = app(ProviderConfigurationReader::class)->values((int) $provider->id);
@@ -410,7 +435,7 @@ final class ProviderManagementController extends Controller
         return back()->with('status', 'Credenziale cifrata salvata e ruotata per l’ambiente corrente.');
     }
 
-    public function configureHttpAdapter(int $provider): View
+    public function configureHttpAdapter(Request $request, int $provider): View
     {
         $this->providerLog('http_adapter_configuration', 'info', 'HTTP adapter configuration page requested.', [
             'provider_id' => $provider,
@@ -445,6 +470,7 @@ final class ProviderManagementController extends Controller
                 'e.method',
                 'e.endpoint',
                 'e.query_params',
+                'e.body_template',
                 'e.items_path',
                 'e.is_enabled',
                 'e.validation_status',
@@ -456,13 +482,14 @@ final class ProviderManagementController extends Controller
             ])
             ->map(function (object $endpoint): object {
                 $endpoint->query_params_decoded = json_decode((string) $endpoint->query_params, true) ?: [];
+                $endpoint->body_template_decoded = json_decode((string) $endpoint->body_template, true) ?: [];
                 $endpoint->field_mappings_decoded = json_decode((string) $endpoint->field_mappings, true) ?: [];
                 $endpoint->required_fields_decoded = json_decode((string) $endpoint->required_fields, true) ?: [];
 
                 return $endpoint;
             });
-        $currentCapability = (string) session('http_adapter_test_input.capability', 'competitions');
-        $currentOperation = (string) session('http_adapter_test_input.operation', 'list');
+        $currentCapability = (string) $request->query('capability', session('http_adapter_test_input.capability', 'competitions'));
+        $currentOperation = (string) $request->query('operation', session('http_adapter_test_input.operation', 'list'));
         $currentEndpoint = $savedEndpoints
             ->where('capability', $currentCapability)
             ->firstWhere('operation', $currentOperation);
@@ -1157,7 +1184,7 @@ final class ProviderManagementController extends Controller
                 'method' => (string) $savedEndpoint->method,
                 'endpoint' => (string) $savedEndpoint->endpoint,
                 'query_params' => $this->keyValueText($savedEndpoint->query_params_decoded),
-                'body_template' => '',
+                'body_template' => $this->jsonText($savedEndpoint->body_template_decoded ?? []),
                 'items_path' => (string) ($savedEndpoint->items_path ?? ''),
                 'field_mappings' => $this->keyValueText($savedEndpoint->field_mappings_decoded),
             ];
@@ -1174,6 +1201,18 @@ final class ProviderManagementController extends Controller
         return collect($values)
             ->map(fn (mixed $value, string $key): string => "{$key}={$value}")
             ->implode("\n");
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    private function jsonText(array $values): string
+    {
+        if ($values === []) {
+            return '';
+        }
+
+        return json_encode($values, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
     }
 
     /**
