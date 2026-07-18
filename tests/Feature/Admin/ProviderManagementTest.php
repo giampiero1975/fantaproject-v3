@@ -765,6 +765,109 @@ class ProviderManagementTest extends TestCase
             ->assertRedirect(route('admin.providers.http-adapter.configure', $providerId));
     }
 
+    public function test_unused_contract_field_can_be_deleted_from_http_adapter_page(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_contract_fields')->insert([
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'field_key' => 'temporary_field',
+            'label' => 'Temporary Field',
+            'description' => 'Campo creato per prova.',
+            'data_type' => 'string',
+            'is_required' => false,
+            'sort_order' => 999,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->delete(route('admin.providers.contract-fields.destroy', [$providerId, 'temporary_field']), [
+                'capability' => 'competitions',
+                'operation' => 'detail',
+            ])
+            ->assertRedirect(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertSessionHas('status', 'Campo contratto temporary_field eliminato.');
+
+        $this->assertDatabaseMissing('data_provider_contract_fields', [
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'field_key' => 'temporary_field',
+        ]);
+    }
+
+    public function test_contract_field_delete_is_blocked_when_field_is_used_by_saved_mapping(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_contract_fields')->insert([
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'field_key' => 'competition_name',
+            'label' => 'Nome competizione',
+            'description' => 'Nome leggibile della competizione.',
+            'data_type' => 'string',
+            'is_required' => true,
+            'sort_order' => 20,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'method' => 'GET',
+            'endpoint' => 'competitions/SA',
+            'query_params' => null,
+            'body_template' => null,
+            'items_path' => null,
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'competition_name' => 'name',
+            ]),
+            'required_fields' => json_encode(['competition_name']),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->delete(route('admin.providers.contract-fields.destroy', [$providerId, 'competition_name']), [
+                'capability' => 'competitions',
+                'operation' => 'detail',
+            ])
+            ->assertSessionHasErrors('contract_field');
+
+        $this->assertDatabaseHas('data_provider_contract_fields', [
+            'capability' => 'competitions',
+            'operation' => 'detail',
+            'field_key' => 'competition_name',
+        ]);
+    }
+
     public function test_mapping_with_new_field_can_be_saved_after_field_is_added_to_contract(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([

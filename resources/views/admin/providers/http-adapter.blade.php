@@ -236,6 +236,13 @@
                                 <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $info['required'] ? 'bg-red-400/15 text-red-200' : 'bg-slate-600 text-slate-200' }}">{{ $info['required'] ? 'richiesto' : 'opzionale' }}</span>
                             </div>
                             <p class="mt-2 text-xs leading-5 text-slate-400">{{ $info['description'] }}</p>
+                            <form method="POST" action="{{ route('admin.providers.contract-fields.destroy', [$provider->id, $field]) }}" class="mt-3" onsubmit="return confirm('Eliminare questo campo interno dal contratto?');">
+                                @csrf
+                                @method('DELETE')
+                                <input type="hidden" name="capability" value="{{ $contractCapability }}">
+                                <input type="hidden" name="operation" value="{{ $operation }}">
+                                <button class="rounded bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 ring-1 ring-red-400/20 hover:bg-red-500/25">Elimina campo interno</button>
+                            </form>
                             <details class="mt-3">
                                 <summary class="cursor-pointer text-xs font-semibold text-violet-200">Modifica campo</summary>
                                 <form method="POST" action="{{ route('admin.providers.contract-fields.update', [$provider->id, $field]) }}" class="mt-3 grid gap-2">

@@ -909,6 +909,59 @@ final class ProviderManagementController extends Controller
             ->with('status', "Campo contratto {$fieldKey} aggiornato.");
     }
 
+    public function destroyContractField(Request $request, int $provider, string $fieldKey): RedirectResponse
+    {
+        $providerRow = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($providerRow, 404);
+
+        $data = $request->validate([
+            'capability' => ['required', 'in:competitions,seasons,teams'],
+            'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
+        ]);
+
+        $fieldKey = $this->normalizeContractFieldKey($fieldKey);
+
+        $exists = DB::table('data_provider_contract_fields')
+            ->where('capability', $data['capability'])
+            ->where('operation', $data['operation'])
+            ->where('field_key', $fieldKey)
+            ->exists();
+
+        abort_unless($exists, 404);
+
+        if ($this->contractFieldIsUsedByMapping($provider, $data['capability'], $data['operation'], $fieldKey)) {
+            $this->providerLog('contract_fields', 'warning', 'Provider contract field delete blocked: field is still used by a mapping.', [
+                'provider_id' => $provider,
+                'provider_code' => $providerRow->code,
+                'capability' => $data['capability'],
+                'operation' => $data['operation'],
+                'field_key' => $fieldKey,
+            ]);
+
+            return back()->withErrors([
+                'contract_field' => "Il campo {$fieldKey} e ancora usato da un mapping salvato. Elimina prima il mapping runtime oppure togli il campo dal Field mapping.",
+            ]);
+        }
+
+        DB::table('data_provider_contract_fields')
+            ->where('capability', $data['capability'])
+            ->where('operation', $data['operation'])
+            ->where('field_key', $fieldKey)
+            ->delete();
+
+        $this->providerLog('contract_fields', 'info', 'Provider contract field deleted.', [
+            'provider_id' => $provider,
+            'provider_code' => $providerRow->code,
+            'capability' => $data['capability'],
+            'operation' => $data['operation'],
+            'field_key' => $fieldKey,
+        ]);
+
+        return redirect()
+            ->route('admin.providers.http-adapter.configure', $provider)
+            ->with('status', "Campo contratto {$fieldKey} eliminato.");
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -966,6 +1019,21 @@ final class ProviderManagementController extends Controller
             ->orderBy('sort_order')
             ->orderBy('field_key')
             ->get(['field_key', 'label', 'description', 'data_type', 'is_required', 'sort_order']);
+    }
+
+    private function contractFieldIsUsedByMapping(int $provider, string $capability, string $operation, string $fieldKey): bool
+    {
+        return DB::table('data_provider_http_endpoints as e')
+            ->join('data_provider_payload_mappings as m', 'm.data_provider_http_endpoint_id', '=', 'e.id')
+            ->where('e.data_provider_id', $provider)
+            ->where('e.capability', $capability)
+            ->where('e.operation', $operation)
+            ->get(['m.field_mappings'])
+            ->contains(function (object $mapping) use ($fieldKey): bool {
+                $fieldMappings = json_decode((string) $mapping->field_mappings, true);
+
+                return is_array($fieldMappings) && array_key_exists($fieldKey, $fieldMappings);
+            });
     }
 
     /**

@@ -45,6 +45,7 @@ Route::middleware([
     Route::post('/providers/{provider}/contract-fields', [ProviderManagementController::class, 'storeContractField'])->name('providers.contract-fields.store');
     Route::get('/providers/{provider}/contract-fields/{fieldKey}', fn (int $provider, string $fieldKey) => redirect()->route('admin.providers.http-adapter.configure', $provider))->name('providers.contract-fields.show');
     Route::put('/providers/{provider}/contract-fields/{fieldKey}', [ProviderManagementController::class, 'updateContractField'])->name('providers.contract-fields.update');
+    Route::delete('/providers/{provider}/contract-fields/{fieldKey}', [ProviderManagementController::class, 'destroyContractField'])->name('providers.contract-fields.destroy');
 
     Route::get('/manage-season', [SeasonManagementController::class, 'index'])->name('seasons.index');
     Route::post('/manage-season/analyze', [SeasonManagementController::class, 'analyze'])->name('seasons.analyze');
