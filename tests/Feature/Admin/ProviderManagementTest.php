@@ -815,6 +815,116 @@ class ProviderManagementTest extends TestCase
         $this->assertSame(['season' => '{season_year}'], json_decode($endpoint->query_params, true));
     }
 
+    public function test_http_adapter_mapping_blocks_accidental_overwrite_when_configuration_was_not_loaded(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'label' => 'Competizioni NAZIONI',
+            'method' => 'GET',
+            'endpoint' => 'competitions',
+            'query_params' => null,
+            'body_template' => null,
+            'items_path' => 'competitions',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'provider_competition_code' => 'code',
+                'competition_name' => 'name',
+                'country_name' => 'area.name',
+            ]),
+            'required_fields' => json_encode(['provider_competition_code', 'competition_name', 'country_name']),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'list',
+                'label' => 'Errore accidentale',
+                'method' => 'GET',
+                'endpoint' => 'wrong-endpoint',
+                'query_params' => '',
+                'items_path' => '',
+                'field_mappings' => "provider_competition_code=code\ncompetition_name=name\ncountry_name=area.name",
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('configuration');
+
+        $endpoint = DB::table('data_provider_http_endpoints')->where('id', $endpointId)->first();
+
+        $this->assertSame('Competizioni NAZIONI', $endpoint->label);
+        $this->assertSame('competitions', $endpoint->endpoint);
+        $this->assertSame('competitions', $endpoint->items_path);
+    }
+
+    public function test_http_adapter_mapping_allows_updating_loaded_configuration(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'label' => 'Competizioni',
+            'method' => 'GET',
+            'endpoint' => 'competitions',
+            'query_params' => null,
+            'body_template' => null,
+            'items_path' => 'competitions',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), [
+                'loaded_endpoint_id' => $endpointId,
+                'capability' => 'competitions',
+                'operation' => 'list',
+                'label' => 'Competizioni NAZIONI',
+                'method' => 'GET',
+                'endpoint' => 'competitions',
+                'query_params' => '',
+                'items_path' => 'competitions',
+                'field_mappings' => "provider_competition_code=code\ncompetition_name=name\ncountry_name=area.name",
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('data_provider_http_endpoints', [
+            'id' => $endpointId,
+            'label' => 'Competizioni NAZIONI',
+            'items_path' => 'competitions',
+        ]);
+    }
+
     public function test_http_adapter_mapping_rejects_fields_missing_from_contract(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
@@ -1381,6 +1491,8 @@ class ProviderManagementTest extends TestCase
                 'operation' => 'by_competition',
             ]))
             ->assertOk()
+            ->assertSee('Modifica configurazione caricata')
+            ->assertSee('name="loaded_endpoint_id" value="'.$endpointId.'"', false)
             ->assertSee('value="Classifica per competizione"', false)
             ->assertSee('Campi interni ·')
             ->assertSee('Classifica per competizione')

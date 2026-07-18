@@ -87,6 +87,16 @@
 
             <form method="POST" class="mt-5 grid gap-4 md:grid-cols-2" data-http-adapter-form>
                 @csrf
+                <input type="hidden" name="loaded_endpoint_id" value="{{ $formInput['loaded_endpoint_id'] ?? '' }}">
+
+                <div class="md:col-span-2 rounded-xl p-3 text-sm ring-1 {{ filled($formInput['loaded_endpoint_id'] ?? '') ? 'bg-amber-50 text-amber-950 ring-amber-200' : 'bg-emerald-50 text-emerald-950 ring-emerald-200' }}">
+                    <span class="font-semibold">
+                        {{ filled($formInput['loaded_endpoint_id'] ?? '') ? 'Modifica configurazione caricata' : 'Nuova configurazione' }}
+                    </span>
+                    <span class="ml-1">
+                        {{ filled($formInput['loaded_endpoint_id'] ?? '') ? 'Stai aggiornando una chiamata esistente. Cambiamenti errati sovrascrivono il mapping salvato.' : 'Il salvataggio crea una nuova chiamata. Se capability e operation esistono gia, prima usa Carica nel form.' }}
+                    </span>
+                </div>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Capability</span>

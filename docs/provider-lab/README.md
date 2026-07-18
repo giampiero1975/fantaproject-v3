@@ -195,6 +195,35 @@ Da li' si usa `Carica nel form` per riprendere una configurazione esistente e ri
 Entrando normalmente nella pagina il form resta vuoto per creare una nuova configurazione.
 Il pulsante `Nuova configurazione` riporta sempre al form pulito, anche dopo aver caricato una chiamata salvata.
 
+## Protezione sovrascritture
+
+La chiave runtime di una configurazione HTTP e':
+
+```text
+provider + capability + operation
+```
+
+Per evitare sovrascritture accidentali, il salvataggio viene bloccato se esiste gia' una configurazione con la stessa chiave e il form non e' stato aperto tramite `Carica nel form`.
+
+Flusso corretto:
+
+```text
+creare nuova configurazione -> aprire pagina normale o Nuova configurazione
+modificare configurazione   -> usare Carica nel form
+```
+
+La pagina mostra un badge:
+
+```text
+Nuova configurazione
+```
+
+oppure:
+
+```text
+Modifica configurazione caricata
+```
+
 ## Stati da riportare in Laravel
 
 ```text

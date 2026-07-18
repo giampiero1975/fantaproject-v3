@@ -513,6 +513,7 @@ final class ProviderManagementController extends Controller
             $currentEndpoint,
             $providerPreset,
         );
+        $formInput['loaded_endpoint_id'] = (string) ($currentEndpoint?->id ?? ($sessionInput['loaded_endpoint_id'] ?? ''));
 
         $contractCapability = $formInput['capability'] ?? 'competitions';
         $contractOperation = $formInput['operation'] ?? 'list';
@@ -698,6 +699,34 @@ final class ProviderManagementController extends Controller
         $query = $this->parseKeyValueLines($data['query_params'] ?? '');
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
         $unknownFields = $this->unknownContractFields($data['capability'], $data['operation'], $fieldMappings);
+        $existingEndpoint = DB::table('data_provider_http_endpoints')
+            ->where('data_provider_id', $provider)
+            ->where('capability', $data['capability'])
+            ->where('operation', $data['operation'])
+            ->first(['id', 'label', 'capability', 'operation']);
+        $loadedEndpointId = filled($data['loaded_endpoint_id'] ?? null)
+            ? (int) $data['loaded_endpoint_id']
+            : null;
+
+        if ($existingEndpoint !== null && $loadedEndpointId !== (int) $existingEndpoint->id) {
+            $label = $existingEndpoint->label ?: "{$existingEndpoint->capability} · {$existingEndpoint->operation}";
+
+            $this->providerLog('http_adapter_mapping', 'warning', 'HTTP adapter mapping save blocked: existing configuration was not loaded.', [
+                'provider_id' => $provider,
+                'provider_code' => $providerRow->code,
+                'capability' => $data['capability'],
+                'operation' => $data['operation'],
+                'existing_endpoint_id' => $existingEndpoint->id,
+                'loaded_endpoint_id' => $loadedEndpointId,
+            ]);
+
+            return back()
+                ->withErrors([
+                    'configuration' => "Esiste gia la configurazione {$label}. Usa Carica nel form prima di aggiornarla, oppure scegli un'altra operation.",
+                ])
+                ->with('http_adapter_test_input', $data)
+                ->withInput();
+        }
 
         if ($unknownFields !== []) {
             $this->providerLog('http_adapter_mapping', 'warning', 'HTTP adapter mapping save blocked: unknown contract fields.', [
@@ -1029,6 +1058,7 @@ final class ProviderManagementController extends Controller
             'items_path' => ['nullable', 'string', 'max:250'],
             'field_mappings' => ['nullable', 'string', 'max:4000'],
             'test_variables' => ['nullable', 'string', 'max:4000'],
+            'loaded_endpoint_id' => ['nullable', 'integer'],
         ]);
     }
 
@@ -1238,7 +1268,7 @@ final class ProviderManagementController extends Controller
      */
     private function sameHttpAdapterInput(array $current, array $previous): bool
     {
-        foreach (['capability', 'operation', 'method', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings', 'test_variables'] as $key) {
+        foreach (['capability', 'operation', 'method', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings', 'test_variables', 'loaded_endpoint_id'] as $key) {
             if (($current[$key] ?? null) !== ($previous[$key] ?? null)) {
                 return false;
             }
