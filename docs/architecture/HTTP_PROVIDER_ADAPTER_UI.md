@@ -511,6 +511,12 @@ dipende dall'endpoint scelto.
 
 ### Step H - Field mapping
 
+Guida completa:
+
+```text
+docs/provider-lab/MAPPING_LANGUAGE.md
+```
+
 Il formato base e':
 
 ```text
@@ -682,7 +688,7 @@ Il link `Nuova configurazione` torna allo stesso stato pulito anche dopo aver ca
 La UI distingue due cancellazioni:
 
 ```text
-Elimina mapping
+Elimina configurazione
 ```
 
 Cancella:

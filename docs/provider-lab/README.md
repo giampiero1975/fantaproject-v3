@@ -128,6 +128,43 @@ season={season_year}
 
 il runtime potra' sostituire la stagione in base al contesto applicativo.
 
+## Field mapping
+
+Il campo `Field mapping` usa il linguaggio documentato in:
+
+```text
+docs/provider-lab/MAPPING_LANGUAGE.md
+```
+
+Regole rapide:
+
+```text
+campo=path
+```
+
+per valori singoli.
+
+```text
+campo=pluck(path_array, path_valore)
+```
+
+per array semplici.
+
+```text
+campo=map(path_array, campo=path, campo=path)
+```
+
+per array di oggetti.
+
+Esempio stagione Football-Data con squadre annidate:
+
+```text
+season_id=season.id
+start_date=season.startDate
+end_date=season.endDate
+list_teams=map(standings.0.table, provider_team_id=team.id, team_name=team.name, position=position)
+```
+
 ## Pulizia in Laravel
 
 Da `Provider Management -> Configura e testa` e' possibile:

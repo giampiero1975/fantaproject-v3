@@ -330,9 +330,29 @@ items_path = standings.0.table
 
 Se invece in query params si salva `season=2024`, la stagione resta cablata a 2024.
 
+Il `Field mapping` supporta anche array annidati. La guida completa e':
+
+```text
+docs/provider-lab/MAPPING_LANGUAGE.md
+```
+
+Esempio stagione Football-Data normalizzata come oggetto singolo con lista squadre:
+
+```text
+items_path = vuoto
+
+season_id=season.id
+start_date=season.startDate
+end_date=season.endDate
+list_teams=map(standings.0.table, provider_team_id=team.id, team_name=team.name, position=position)
+```
+
+Usare `items_path = standings.0.table` solo quando la collection principale da importare e' la lista squadre/classifica.
+Se invece si sta normalizzando la stagione, `standings.0.table` va usato dentro `pluck(...)` o `map(...)`.
+
 La pagina consente anche la pulizia:
 
-- `Elimina mapping`: rimuove endpoint e payload mapping runtime;
+- `Elimina configurazione`: rimuove endpoint e payload mapping runtime;
 - `Elimina campo interno`: rimuove un campo da `data_provider_contract_fields` solo se non e' usato da mapping salvati.
 
 ### Analizza senza scrivere
