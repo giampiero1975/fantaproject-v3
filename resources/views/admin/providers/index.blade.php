@@ -92,7 +92,10 @@
                                 @forelse ($provider->http_mappings as $httpMapping)
                                     <div class="rounded-lg bg-white p-3 text-xs ring-1 ring-blue-200">
                                         <div class="flex flex-wrap items-center justify-between gap-2">
-                                            <strong class="text-blue-950">{{ $httpMapping->capability }} · {{ $httpMapping->operation }}</strong>
+                                            <div>
+                                                <strong class="text-blue-950">{{ $httpMapping->label ?: "{$httpMapping->capability} · {$httpMapping->operation}" }}</strong>
+                                                <div class="mt-0.5 text-blue-700">{{ $httpMapping->capability }} · {{ $httpMapping->operation }}</div>
+                                            </div>
                                             <span class="{{ $httpMapping->is_enabled ? 'text-emerald-700' : 'text-amber-700' }}">{{ $httpMapping->mapping_validation_status ?? $httpMapping->validation_status }}</span>
                                         </div>
                                         <div class="mt-2 break-all font-mono text-blue-900">{{ $httpMapping->method }} {{ $httpMapping->endpoint }}</div>

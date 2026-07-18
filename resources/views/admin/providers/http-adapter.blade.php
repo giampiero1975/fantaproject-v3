@@ -14,6 +14,7 @@
              selectedOperation: @js($formInput['operation'] ?? 'list'),
              operationHelp: @js($operationDescriptions),
              clearOperationFields() {
+                 this.$refs.label.value = '';
                  this.$refs.endpoint.value = '';
                  this.$refs.queryParams.value = '';
                  this.$refs.bodyTemplate.value = '';
@@ -36,42 +37,33 @@
                     <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ $savedEndpoints->count() }} salvate</span>
                 </div>
 
-                <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                <div class="mt-4 space-y-2">
                     @forelse ($savedEndpoints as $endpoint)
-                        <article class="rounded-xl bg-slate-50 p-3 text-xs ring-1 ring-slate-200">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                    <div class="font-semibold text-slate-950">{{ $endpoint->capability }} · {{ $endpoint->operation }}</div>
-                                    <div class="mt-1 break-all font-mono text-slate-700">{{ $endpoint->method }} {{ $endpoint->endpoint }}</div>
+                        <article class="grid gap-3 rounded-xl bg-slate-50 p-3 text-xs ring-1 ring-slate-200 xl:grid-cols-[180px_minmax(0,1fr)_auto] xl:items-center">
+                            <div>
+                                <div class="font-semibold text-slate-950">{{ $endpoint->label ?: "{$endpoint->capability} · {$endpoint->operation}" }}</div>
+                                <div class="mt-1 text-slate-500">{{ $endpoint->capability }} · {{ $endpoint->operation }}</div>
+                            </div>
+
+                            <div class="min-w-0">
+                                <div class="break-all font-mono text-slate-800">{{ $endpoint->method }} {{ $endpoint->endpoint }}</div>
+                                <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-slate-600">
+                                    <span>Query: <code>{{ ! empty($endpoint->query_params_decoded) ? http_build_query($endpoint->query_params_decoded) : 'nessuna' }}</code></span>
+                                    <span>Items: <code>{{ $endpoint->items_path ?: 'root object' }}</code></span>
+                                    <span>Campi: {{ count($endpoint->field_mappings_decoded) }}</span>
+                                    <span>Ultimo test: {{ $endpoint->last_status_code ?? 'non testato' }}</span>
                                 </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2 xl:justify-end">
                                 <span class="rounded-full px-2 py-0.5 font-semibold {{ $endpoint->is_enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
                                     {{ $endpoint->mapping_validation_status ?? $endpoint->validation_status }}
                                 </span>
+                                <a href="{{ route('admin.providers.http-adapter.configure', ['provider' => $provider->id, 'capability' => $endpoint->capability, 'operation' => $endpoint->operation]) }}" class="inline-flex rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-700">Carica nel form</a>
                             </div>
-
-                            <dl class="mt-3 grid gap-2 text-slate-700">
-                                <div>
-                                    <dt class="font-semibold text-slate-500">Query</dt>
-                                    <dd class="break-all font-mono">{{ ! empty($endpoint->query_params_decoded) ? http_build_query($endpoint->query_params_decoded) : 'nessuna' }}</dd>
-                                </div>
-                                <div>
-                                    <dt class="font-semibold text-slate-500">Items path</dt>
-                                    <dd class="font-mono">{{ $endpoint->items_path ?: 'root object' }}</dd>
-                                </div>
-                                <div>
-                                    <dt class="font-semibold text-slate-500">Campi mappati</dt>
-                                    <dd>{{ count($endpoint->field_mappings_decoded) }} · <span class="font-mono">{{ implode(', ', array_keys($endpoint->field_mappings_decoded)) ?: 'nessuno' }}</span></dd>
-                                </div>
-                                <div>
-                                    <dt class="font-semibold text-slate-500">Ultimo test</dt>
-                                    <dd>{{ $endpoint->last_status_code ?? 'non testato' }}</dd>
-                                </div>
-                            </dl>
-
-                            <a href="{{ route('admin.providers.http-adapter.configure', ['provider' => $provider->id, 'capability' => $endpoint->capability, 'operation' => $endpoint->operation]) }}" class="mt-3 inline-flex rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">Carica nel form</a>
                         </article>
                     @empty
-                        <div class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200 lg:col-span-2">
+                        <div class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
                             Nessuna chiamata configurata. Salva il primo mapping runtime dopo un test valido.
                         </div>
                     @endforelse
@@ -98,6 +90,12 @@
                         @endforeach
                     </select>
                     <span class="block text-[11px] text-slate-500">Esempio: lista competizioni o dettaglio singola competizione.</span>
+                </label>
+
+                <label class="space-y-1 md:col-span-2">
+                    <span class="text-xs font-medium text-slate-700">Nome configurazione</span>
+                    <input name="label" x-ref="label" value="{{ $formInput['label'] ?? '' }}" placeholder="es. Lista competizioni Football-Data" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                    <span class="block text-[11px] text-slate-500">Nome leggibile per riconoscere la chiamata salvata. Se vuoto viene mostrato capability · operation.</span>
                 </label>
 
                 <x-fo.card padding="p-4" class="md:col-span-2">

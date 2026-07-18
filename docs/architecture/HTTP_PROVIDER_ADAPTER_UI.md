@@ -159,6 +159,7 @@ La pagina permette di:
 
 - scegliere capability;
 - scegliere operation;
+- assegnare una label leggibile alla configurazione;
 - configurare method, endpoint, query params e body;
 - usare variabili template in endpoint, query params e body;
 - indicare valori di test temporanei per risolvere le variabili;
@@ -301,6 +302,7 @@ Campi:
 
 ```text
 method
+label
 endpoint
 query_params
 body_template
@@ -591,6 +593,7 @@ Salva:
 provider
 capability
 operation
+label
 request config
 response mapping
 test sample
@@ -607,6 +610,7 @@ Per ogni provider deve mostrare anche il contenuto minimo delle chiamate configu
 ```text
 capability
 operation
+label
 method + endpoint
 query params
 items_path

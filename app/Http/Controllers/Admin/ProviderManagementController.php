@@ -91,6 +91,7 @@ final class ProviderManagementController extends Controller
                         'e.id',
                         'e.capability',
                         'e.operation',
+                        'e.label',
                         'e.method',
                         'e.endpoint',
                         'e.query_params',
@@ -467,6 +468,7 @@ final class ProviderManagementController extends Controller
                 'e.id',
                 'e.capability',
                 'e.operation',
+                'e.label',
                 'e.method',
                 'e.endpoint',
                 'e.query_params',
@@ -732,6 +734,7 @@ final class ProviderManagementController extends Controller
                     'operation' => $data['operation'],
                 ],
                 [
+                    'label' => ($data['label'] ?? null) ?: null,
                     'method' => $data['method'],
                     'endpoint' => $data['endpoint'],
                     'query_params' => $query !== [] ? json_encode($query, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
@@ -1004,6 +1007,7 @@ final class ProviderManagementController extends Controller
         return $request->validate([
             'capability' => ['required', 'in:competitions,seasons,teams'],
             'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
+            'label' => ['nullable', 'string', 'max:150'],
             'method' => ['required', 'in:GET,POST'],
             'endpoint' => ['required', 'string', 'max:250'],
             'query_params' => ['nullable', 'string', 'max:4000'],
@@ -1181,6 +1185,7 @@ final class ProviderManagementController extends Controller
             $savedInput = [
                 'capability' => (string) $savedEndpoint->capability,
                 'operation' => (string) $savedEndpoint->operation,
+                'label' => (string) ($savedEndpoint->label ?? ''),
                 'method' => (string) $savedEndpoint->method,
                 'endpoint' => (string) $savedEndpoint->endpoint,
                 'query_params' => $this->keyValueText($savedEndpoint->query_params_decoded),

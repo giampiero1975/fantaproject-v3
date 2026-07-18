@@ -145,6 +145,7 @@ La lista Provider Management mostra il contenuto delle chiamate HTTP salvate, no
 
 ```text
 capability · operation
+label
 method endpoint
 query params
 items path

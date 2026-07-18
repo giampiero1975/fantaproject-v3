@@ -581,6 +581,7 @@ class ProviderManagementTest extends TestCase
             ->post(route('admin.providers.http-adapter.save', $providerId), [
                 'capability' => 'competitions',
                 'operation' => 'list',
+                'label' => 'Lista leghe TheSportsDB',
                 'method' => 'GET',
                 'endpoint' => 'search_all_leagues.php',
                 'query_params' => 'c=Italy',
@@ -598,6 +599,7 @@ class ProviderManagementTest extends TestCase
             ->first();
 
         $this->assertNotNull($endpoint);
+        $this->assertSame('Lista leghe TheSportsDB', $endpoint->label);
         $this->assertSame('GET', $endpoint->method);
         $this->assertSame('search_all_leagues.php', $endpoint->endpoint);
         $this->assertSame('countries', $endpoint->items_path);
@@ -1139,6 +1141,7 @@ class ProviderManagementTest extends TestCase
             'data_provider_id' => $providerId,
             'capability' => 'competitions',
             'operation' => 'by_competition',
+            'label' => 'Classifica per competizione',
             'method' => 'GET',
             'endpoint' => 'competitions/{provider_competition_code}/standings',
             'query_params' => json_encode(['season' => '{season_year}']),
@@ -1166,6 +1169,7 @@ class ProviderManagementTest extends TestCase
             ->get(route('admin.providers.http-adapter.configure', $providerId))
             ->assertOk()
             ->assertSee('Chiamate configurate')
+            ->assertSee('Classifica per competizione')
             ->assertSee('competitions · by_competition')
             ->assertSee('competitions/{provider_competition_code}/standings')
             ->assertSee('season=%7Bseason_year%7D')
@@ -1188,6 +1192,7 @@ class ProviderManagementTest extends TestCase
             'data_provider_id' => $providerId,
             'capability' => 'competitions',
             'operation' => 'by_competition',
+            'label' => 'Classifica per competizione',
             'method' => 'GET',
             'endpoint' => 'competitions/{provider_competition_code}/standings',
             'query_params' => json_encode(['season' => '{season_year}']),
@@ -1217,6 +1222,7 @@ class ProviderManagementTest extends TestCase
                 'operation' => 'by_competition',
             ]))
             ->assertOk()
+            ->assertSee('value="Classifica per competizione"', false)
             ->assertSee('value="competitions/{provider_competition_code}/standings"', false)
             ->assertSee('season={season_year}')
             ->assertSee('value="standings.0.table"', false)
@@ -1351,6 +1357,7 @@ class ProviderManagementTest extends TestCase
             'data_provider_id' => $providerId,
             'capability' => 'competitions',
             'operation' => 'by_competition',
+            'label' => 'Classifica per competizione',
             'method' => 'GET',
             'endpoint' => 'competitions/{provider_competition_code}/standings',
             'query_params' => json_encode(['season' => '{season_year}']),
@@ -1375,6 +1382,7 @@ class ProviderManagementTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.providers.index'))
             ->assertOk()
+            ->assertSee('Classifica per competizione')
             ->assertSee('competitions · by_competition')
             ->assertSee('competitions/{provider_competition_code}/standings')
             ->assertSee('season=%7Bseason_year%7D')
