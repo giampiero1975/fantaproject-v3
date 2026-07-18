@@ -73,20 +73,26 @@
 
                 <label class="space-y-1 md:col-span-2">
                     <span class="text-xs font-medium text-slate-700">Endpoint</span>
-                    <input name="endpoint" x-ref="endpoint" value="{{ $formInput['endpoint'] ?? '' }}" placeholder="competitions" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300" required>
-                    <span class="block text-[11px] text-slate-500">Inserisci un endpoint relativo alla base URL, come in Postman.</span>
+                    <input name="endpoint" x-ref="endpoint" value="{{ $formInput['endpoint'] ?? '' }}" placeholder="competitions/{provider_competition_code}/standings" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300" required>
+                    <span class="block text-[11px] text-slate-500">Endpoint relativo alla base URL. Puoi usare variabili come <code>{provider_competition_code}</code>.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Query params</span>
-                    <textarea name="query_params" x-ref="queryParams" rows="6" placeholder="id=135" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['query_params'] ?? '' }}</textarea>
-                    <span class="block text-[11px] text-slate-500">Formato: una coppia key=value per riga.</span>
+                    <textarea name="query_params" x-ref="queryParams" rows="6" placeholder="season={season_year}" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['query_params'] ?? '' }}</textarea>
+                    <span class="block text-[11px] text-slate-500">Formato: una coppia key=value per riga. I valori possono contenere variabili.</span>
                 </label>
 
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Body JSON</span>
                     <textarea name="body_template" x-ref="bodyTemplate" rows="6" placeholder='{"country":"Italy"}' class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['body_template'] ?? '' }}</textarea>
                     <span class="block text-[11px] text-slate-500">Usato solo per POST. Per la prima fase usa GET.</span>
+                </label>
+
+                <label class="space-y-1 md:col-span-2">
+                    <span class="text-xs font-medium text-slate-700">Valori test variabili</span>
+                    <textarea name="test_variables" rows="4" placeholder="provider_competition_code=SA&#10;season_year=2024" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['test_variables'] ?? '' }}</textarea>
+                    <span class="block text-[11px] text-slate-500">Usati solo dal pulsante Test request. Non vengono salvati nella configurazione runtime.</span>
                 </label>
 
                 <label class="space-y-1">
@@ -342,6 +348,9 @@
                     <dl class="mt-3 space-y-2">
                         <div><dt class="text-slate-500">Status</dt><dd class="font-semibold {{ $testResult['ok'] ? 'text-emerald-700' : 'text-red-700' }}">{{ $testResult['status'] ?? 'Errore' }}</dd></div>
                         <div><dt class="text-slate-500">URL</dt><dd class="break-all font-mono text-xs">{{ $testResult['resolved_url'] }}</dd></div>
+                        @if (! empty($testResult['resolved_query']))
+                            <div><dt class="text-slate-500">Query risolta</dt><dd class="break-all font-mono text-xs">{{ http_build_query($testResult['resolved_query']) }}</dd></div>
+                        @endif
                         <div><dt class="text-slate-500">Items trovati</dt><dd>{{ $testResult['items_count'] }}</dd></div>
                     </dl>
 

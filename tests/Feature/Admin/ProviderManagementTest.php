@@ -330,6 +330,57 @@ class ProviderManagementTest extends TestCase
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'search_all_leagues.php'));
     }
 
+    public function test_http_adapter_test_request_resolves_template_variables_without_persisting_them(): void
+    {
+        Http::fake([
+            'api.football-data.org/*' => Http::response([
+                'standings' => [
+                    [
+                        'table' => [
+                            [
+                                'position' => 1,
+                                'team' => ['id' => 109, 'name' => 'Juventus FC'],
+                                'points' => 80,
+                            ],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'by_competition',
+                'method' => 'GET',
+                'endpoint' => 'competitions/{provider_competition_code}/standings',
+                'query_params' => 'season={season_year}',
+                'test_variables' => "provider_competition_code=SA\nseason_year=2024",
+                'items_path' => 'standings.0.table',
+                'field_mappings' => '',
+            ])
+            ->assertRedirect();
+
+        $result = session('http_adapter_test_result');
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame('https://api.football-data.org/v4/competitions/SA/standings', $result['resolved_url']);
+        $this->assertSame(['season' => '2024'], $result['resolved_query']);
+        $this->assertSame(1, $result['items_count']);
+
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'competitions/SA/standings')
+            && str_contains($request->url(), 'season=2024'));
+    }
+
     public function test_http_adapter_test_warns_when_successful_response_has_no_mappable_payload(): void
     {
         File::deleteDirectory(storage_path('logs/administration/provider_managment'));
@@ -565,6 +616,42 @@ class ProviderManagementTest extends TestCase
             'competition_name' => 'strLeague',
             'country_name' => 'strCountry',
         ], json_decode($mapping->field_mappings, true));
+    }
+
+    public function test_http_adapter_mapping_saves_template_variables_as_placeholders(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'by_competition',
+                'method' => 'GET',
+                'endpoint' => 'competitions/{provider_competition_code}/standings',
+                'query_params' => 'season={season_year}',
+                'test_variables' => "provider_competition_code=SA\nseason_year=2024",
+                'items_path' => 'standings.0.table',
+                'field_mappings' => '',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $endpoint = DB::table('data_provider_http_endpoints')
+            ->where('data_provider_id', $providerId)
+            ->where('capability', 'competitions')
+            ->where('operation', 'by_competition')
+            ->first();
+
+        $this->assertNotNull($endpoint);
+        $this->assertSame('competitions/{provider_competition_code}/standings', $endpoint->endpoint);
+        $this->assertSame(['season' => '{season_year}'], json_decode($endpoint->query_params, true));
     }
 
     public function test_http_adapter_mapping_rejects_fields_missing_from_contract(): void

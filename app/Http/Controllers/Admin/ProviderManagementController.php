@@ -518,8 +518,10 @@ final class ProviderManagementController extends Controller
 
         $data = $this->validateHttpAdapterInput($request);
 
-        $url = $this->buildProviderUrl((string) $providerRow->base_url, $data['endpoint']);
-        $query = $this->parseKeyValueLines($data['query_params'] ?? '');
+        $testVariables = $this->parseKeyValueLines($data['test_variables'] ?? '');
+        $endpoint = $this->renderTemplate($data['endpoint'], $testVariables);
+        $url = $this->buildProviderUrl((string) $providerRow->base_url, $endpoint);
+        $query = $this->renderTemplateArray($this->parseKeyValueLines($data['query_params'] ?? ''), $testVariables);
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
         $unknownFields = $this->unknownContractFields($data['capability'], $data['operation'], $fieldMappings);
 
@@ -541,6 +543,8 @@ final class ProviderManagementController extends Controller
             'method' => $data['method'],
             'url' => $url,
             'query_keys' => array_keys($query),
+            'template_endpoint' => $data['endpoint'],
+            'test_variable_keys' => array_keys($testVariables),
             'items_path' => $data['items_path'] ?? '',
             'mapped_fields' => array_keys($fieldMappings),
         ]);
@@ -548,7 +552,7 @@ final class ProviderManagementController extends Controller
         try {
             $pendingRequest = $this->httpAdapterRequest($providerRow);
             $response = $data['method'] === 'POST'
-                ? $pendingRequest->post($url, $this->parseJsonBody($data['body_template'] ?? ''))
+                ? $pendingRequest->post($url, $this->renderTemplateArray($this->parseJsonBody($data['body_template'] ?? ''), $testVariables))
                 : $pendingRequest->get($url, $query);
 
             $json = $response->json();
@@ -567,6 +571,9 @@ final class ProviderManagementController extends Controller
             $result = [
                 'ok' => $response->successful(),
                 'resolved_url' => $url,
+                'resolved_query' => $query,
+                'template_endpoint' => $data['endpoint'],
+                'test_variables' => $testVariables,
                 'status' => $response->status(),
                 'items_count' => count($items),
                 'first_item' => $firstItem,
@@ -976,6 +983,7 @@ final class ProviderManagementController extends Controller
             'body_template' => ['nullable', 'string', 'max:8000'],
             'items_path' => ['nullable', 'string', 'max:250'],
             'field_mappings' => ['nullable', 'string', 'max:4000'],
+            'test_variables' => ['nullable', 'string', 'max:4000'],
         ]);
     }
 
@@ -1202,7 +1210,7 @@ final class ProviderManagementController extends Controller
      */
     private function sameHttpAdapterInput(array $current, array $previous): bool
     {
-        foreach (['capability', 'operation', 'method', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings'] as $key) {
+        foreach (['capability', 'operation', 'method', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings', 'test_variables'] as $key) {
             if (($current[$key] ?? null) !== ($previous[$key] ?? null)) {
                 return false;
             }
@@ -1270,6 +1278,33 @@ final class ProviderManagementController extends Controller
         $endpoint = ltrim($endpoint, '/');
 
         return "{$baseUrl}/{$endpoint}";
+    }
+
+    private function renderTemplate(string $value, array $variables): string
+    {
+        foreach ($variables as $key => $replacement) {
+            $value = str_replace('{'.$key.'}', (string) $replacement, $value);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $value
+     * @param  array<string, string>  $variables
+     * @return array<string, mixed>
+     */
+    private function renderTemplateArray(array $value, array $variables): array
+    {
+        return collect($value)
+            ->map(function (mixed $item) use ($variables): mixed {
+                if (is_array($item)) {
+                    return $this->renderTemplateArray($item, $variables);
+                }
+
+                return is_string($item) ? $this->renderTemplate($item, $variables) : $item;
+            })
+            ->all();
     }
 
     private function httpAdapterRequest(object $provider): \Illuminate\Http\Client\PendingRequest
