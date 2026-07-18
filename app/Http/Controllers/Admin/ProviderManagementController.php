@@ -1458,7 +1458,46 @@ final class ProviderManagementController extends Controller
                 ->all();
         }
 
+        if (preg_match('/^map\(([^,]+),\s*(.+)\)$/', trim($sourcePath), $matches) === 1) {
+            $items = data_get($item, trim($matches[1]));
+            $nestedMappings = $this->parseInlineMappings(trim($matches[2]));
+
+            if (! is_array($items) || $nestedMappings === []) {
+                return [];
+            }
+
+            $items = Arr::isAssoc($items) ? [$items] : $items;
+
+            return collect($items)
+                ->filter(fn (mixed $nestedItem): bool => is_array($nestedItem))
+                ->map(fn (array $nestedItem): array => collect($nestedMappings)
+                    ->mapWithKeys(fn (string $nestedSourcePath, string $nestedTargetField): array => [
+                        $nestedTargetField => data_get($nestedItem, $nestedSourcePath),
+                    ])
+                    ->all())
+                ->values()
+                ->all();
+        }
+
         return data_get($item, $sourcePath);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parseInlineMappings(string $value): array
+    {
+        return collect(explode(',', $value))
+            ->mapWithKeys(function (string $pair): array {
+                [$field, $path] = array_pad(explode('=', $pair, 2), 2, null);
+                $field = trim((string) $field);
+                $path = trim((string) $path);
+
+                return $field !== '' && $path !== ''
+                    ? [$field => $path]
+                    : [];
+            })
+            ->all();
     }
 
     private function limitPayload(mixed $payload): mixed

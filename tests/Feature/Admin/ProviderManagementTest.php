@@ -403,6 +403,92 @@ class ProviderManagementTest extends TestCase
         ], $result['normalized_preview']);
     }
 
+    public function test_http_adapter_test_request_can_map_nested_arrays_into_json_objects(): void
+    {
+        Http::fake([
+            'api.football-data.org/*' => Http::response([
+                'season' => [
+                    'id' => 2494,
+                    'startDate' => '2026-08-23',
+                    'endDate' => '2027-05-30',
+                ],
+                'standings' => [
+                    [
+                        'table' => [
+                            [
+                                'position' => 1,
+                                'team' => ['id' => 109, 'name' => 'Juventus FC'],
+                            ],
+                            [
+                                'position' => 2,
+                                'team' => ['id' => 98, 'name' => 'AC Milan'],
+                            ],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach ([
+            ['season_id', 'ID stagione', 'integer', true, 10],
+            ['list_teams', 'Lista squadre', 'json', false, 20],
+        ] as [$fieldKey, $label, $type, $required, $sortOrder]) {
+            DB::table('data_provider_contract_fields')->insert([
+                'capability' => 'seasons',
+                'operation' => 'by_season',
+                'field_key' => $fieldKey,
+                'label' => $label,
+                'description' => $label,
+                'data_type' => $type,
+                'is_required' => $required,
+                'sort_order' => $sortOrder,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'seasons',
+                'operation' => 'by_season',
+                'method' => 'GET',
+                'endpoint' => 'competitions/{provider_competition_code}/standings',
+                'query_params' => 'season={season_year}',
+                'test_variables' => "provider_competition_code=SA\nseason_year=2026",
+                'items_path' => '',
+                'field_mappings' => "season_id=season.id\nlist_teams=map(standings.0.table, provider_team_id=team.id, team_name=team.name, position=position)",
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $result = session('http_adapter_test_result');
+
+        $this->assertSame([
+            'season_id' => 2494,
+            'list_teams' => [
+                [
+                    'provider_team_id' => 109,
+                    'team_name' => 'Juventus FC',
+                    'position' => 1,
+                ],
+                [
+                    'provider_team_id' => 98,
+                    'team_name' => 'AC Milan',
+                    'position' => 2,
+                ],
+            ],
+        ], $result['normalized_preview']);
+    }
+
     public function test_http_adapter_test_request_resolves_template_variables_without_persisting_them(): void
     {
         Http::fake([

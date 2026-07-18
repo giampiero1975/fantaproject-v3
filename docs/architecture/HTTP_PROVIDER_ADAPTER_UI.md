@@ -538,6 +538,29 @@ list_teams=pluck(standings.0.table, team.id)
 
 Qui `standings.0.table` individua l'array da attraversare e `team.id` il valore da estrarre da ogni elemento.
 
+Quando il campo interno deve contenere una lista di oggetti, si usa:
+
+```text
+campo_json=map(path_array, campo=path_valore, campo=path_valore)
+```
+
+Esempio Football-Data, stagione con ID e nome squadre:
+
+```text
+list_teams=map(standings.0.table, provider_team_id=team.id, team_name=team.name)
+```
+
+Risultato:
+
+```json
+[
+  {
+    "provider_team_id": 109,
+    "team_name": "Juventus FC"
+  }
+]
+```
+
 Per capability `competitions`:
 
 ```text

@@ -168,7 +168,7 @@
                 <label class="space-y-1">
                     <span class="text-xs font-medium text-slate-700">Field mapping</span>
                     <textarea name="field_mappings" x-ref="fieldMappings" rows="6" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-900 ring-1 ring-slate-300">{{ $formInput['field_mappings'] ?? '' }}</textarea>
-                    <span class="block text-[11px] text-slate-500">Formato: campo_interno=path_payload. Per liste annidate usa <code>list_teams=pluck(standings.0.table, team.id)</code>.</span>
+                    <span class="block text-[11px] text-slate-500">Formato: campo_interno=path_payload. Liste annidate: <code>pluck(path_array, path_valore)</code> oppure <code>map(path_array, campo=path, campo=path)</code>.</span>
                 </label>
 
                 <div class="flex flex-wrap gap-3 md:col-span-2">
