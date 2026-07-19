@@ -46,6 +46,7 @@ Route::middleware([
     Route::delete('/providers/{provider}/contract-fields/{fieldKey}', [ProviderManagementController::class, 'destroyContractField'])->name('providers.contract-fields.destroy');
 
     Route::get('/manage-season', [SeasonManagementController::class, 'index'])->name('seasons.index');
+    Route::post('/manage-season/provider-mappings', [SeasonManagementController::class, 'storeProviderMapping'])->name('seasons.provider-mappings.store');
     Route::post('/manage-season/analyze', [SeasonManagementController::class, 'analyze'])->name('seasons.analyze');
     Route::post('/manage-season/apply', [SeasonManagementController::class, 'apply'])->name('seasons.apply');
 });

@@ -191,6 +191,24 @@ Il sistema:
 
 Le date `start_date` e `end_date` vengono conservate anche per validare la coerenza temporale di `is_current`.
 
+### Regola sui dati espliciti
+
+Le date ufficiali di una lega-stagione vengono valorizzate solo quando il provider espone campi espliciti nel payload.
+
+```text
+start_date=season.startDate
+end_date=season.endDate
+```
+
+Non sono ammessi valori dedotti da eventi parziali, classifiche o aggregazioni locali.
+
+```text
+NO start_date = min(eventi)
+NO end_date   = max(eventi)
+```
+
+Se un provider restituisce soltanto eventi o classifiche, puo' essere utile per audit, squadre o calendario, ma non e' valido per alimentare `start_date` e `end_date` della capability `seasons`.
+
 ---
 
 ## 8. Comandi CLI
@@ -298,7 +316,10 @@ Endpoint, query params e body possono contenere placeholder:
 ```text
 competitions/{provider_competition_code}/standings
 season={season_year}
+s={season_label}
 ```
+
+`season_label` rappresenta il formato cross-year `YYYY-YYYY+1`, ad esempio `2022-2023`.
 
 Il campo `Valori test variabili` serve solo per la prova manuale:
 
@@ -382,6 +403,12 @@ Il comando opera in transazione e prima disattiva l'eventuale precedente `is_cur
 - multi-provider quando entrambe le API sono disponibili;
 - single-provider quando un piano non copre una stagione;
 - matching squadre 20/20 nei confronti validati.
+
+### TheSportsDB
+
+TheSportsDB e' stato verificato come fallback sperimentale, ma gli endpoint disponibili nel piano free non espongono date stagione ufficiali esplicite.
+
+`eventsseason.php` restituisce eventi e puo' essere utile per audit o calendario, ma non deve essere usato per dedurre `start_date` e `end_date`.
 
 ### Serie B
 

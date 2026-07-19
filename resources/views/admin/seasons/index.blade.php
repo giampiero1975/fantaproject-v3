@@ -21,9 +21,23 @@
             </div>
             <div class="mt-4 grid gap-4 md:grid-cols-4 text-sm">
                 <div><strong class="text-white">1. Seleziona</strong><p class="mt-1 text-slate-400">Scegli la lega interna; gli ID esterni sono letti dai mapping DB.</p></div>
-                <div><strong class="text-white">2. Analizza</strong><p class="mt-1 text-slate-400">Scopre current e current + history fallback.</p></div>
-                <div><strong class="text-white">3. Verifica</strong><p class="mt-1 text-slate-400">Controlla provider, date, azioni e coverage.</p></div>
+                <div><strong class="text-white">2. Controlla capability</strong><p class="mt-1 text-slate-400">Verifica quali provider coprono competizioni, stagioni e squadre.</p></div>
+                <div><strong class="text-white">3. Analizza</strong><p class="mt-1 text-slate-400">Esegue dry-run usando i riferimenti provider salvati.</p></div>
                 <div><strong class="text-white">4. Applica</strong><p class="mt-1 text-slate-400">Scrive solo dopo conferma esplicita APPLICA.</p></div>
+            </div>
+
+            <div class="mt-5 rounded-xl border border-sky-300/20 bg-sky-400/5 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-sm font-semibold text-sky-100">Capability richieste da Gestione Stagioni</h3>
+                        <p class="mt-1 text-xs text-slate-400">La pagina usa solo configurazioni HTTP salvate nel DB. Un provider può essere attivo ma non pronto per tutte le capability.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2" data-season-required-capabilities>
+                        @foreach($requiredCapabilities as $capability)
+                            <span class="inline-flex rounded-full bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-100 ring-1 ring-white/10">{{ $capability }}</span>
+                        @endforeach
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -70,31 +84,149 @@
                     <h2 class="text-lg font-semibold text-white">Registry competizioni e provider</h2>
                     <p class="mt-1 text-sm text-slate-400">Questi valori sono informativi e provengono dal database.</p>
                 </div>
-                <details class="relative">
-                    <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-white/[0.05] text-slate-300 ring-1 ring-white/10 hover:bg-white/[0.09] [&::-webkit-details-marker]:hidden" title="Filtra per nazione" aria-label="Filtra competizioni per nazione">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4.5h18l-7 8v5.25l-4 1.75v-7L3 4.5Z" /></svg>
-                    </summary>
-                    <div class="absolute right-0 z-20 mt-2 w-64 rounded-xl bg-slate-900 p-3 shadow-xl ring-1 ring-white/10">
-                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-400">Nazione</label>
-                        <select data-season-country-filter class="mt-2 w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-white ring-1 ring-white/10">
-                            <option value="">Tutte le nazioni</option>
-                            @foreach($countries as $country)
-                                <option value="{{ $country->country_id }}">{{ $country->country_name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </details>
+                <div class="flex flex-wrap items-center gap-2">
+                    <details class="relative">
+                        <summary class="cursor-pointer list-none rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-500 [&::-webkit-details-marker]:hidden" data-season-provider-mapping-trigger>
+                            Collega provider
+                        </summary>
+                        <div class="absolute right-0 z-20 mt-2 rounded-xl bg-slate-100 p-4 text-slate-900 shadow-xl ring-1 ring-slate-300" style="width: min(42rem, calc(100vw - 2rem));">
+                            <h3 class="text-sm font-semibold text-slate-950">Collega competizione interna a provider</h3>
+                            <p class="mt-1 text-xs text-slate-600">Salva il codice esterno in league_provider_mappings. Esempio Football-Data: Serie A = SA.</p>
+                            <form method="POST" action="{{ route('admin.seasons.provider-mappings.store') }}" class="mt-4 grid gap-3 sm:grid-cols-2" data-season-provider-mapping-form>
+                                @csrf
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Competizione interna</span>
+                                    <select name="league_id" class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300" required>
+                                        <option value="">Seleziona...</option>
+                                        @foreach($internalLeagues as $leagueOption)
+                                            <option value="{{ $leagueOption->id }}" @selected((string) old('league_id') === (string) $leagueOption->id)>{{ $leagueOption->country_name ? $leagueOption->country_name.' · ' : '' }}{{ $leagueOption->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Provider</span>
+                                    <select name="data_provider_id" class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300" required>
+                                        <option value="">Seleziona...</option>
+                                        @foreach($mappableProviders as $providerOption)
+                                            <option value="{{ $providerOption->id }}" @selected((string) old('data_provider_id') === (string) $providerOption->id)>{{ $providerOption->name }} · {{ $providerOption->code }}{{ $providerOption->competitions_ready ? '' : ' · mapping da validare' }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Codice provider</span>
+                                    <input name="external_id" value="{{ old('external_id') }}" placeholder="SA" class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400" required>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Nome provider</span>
+                                    <input name="external_name" value="{{ old('external_name') }}" placeholder="Serie A" class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400" required>
+                                </label>
+                                <label class="space-y-1 sm:col-span-2">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Nazione provider</span>
+                                    <input name="external_country" value="{{ old('external_country') }}" placeholder="Italy" class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400">
+                                </label>
+                                <div class="sm:col-span-2">
+                                    <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Salva collegamento</button>
+                                </div>
+                            </form>
+                        </div>
+                    </details>
+
+                    <details class="relative">
+                        <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-white/[0.05] text-slate-300 ring-1 ring-white/10 hover:bg-white/[0.09] [&::-webkit-details-marker]:hidden" title="Filtra registry" aria-label="Filtra registry competizioni e provider">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4.5h18l-7 8v5.25l-4 1.75v-7L3 4.5Z" /></svg>
+                        </summary>
+                        <div class="absolute right-0 z-20 mt-2 rounded-xl bg-slate-100 p-4 text-slate-900 shadow-xl ring-1 ring-slate-300" style="width: min(42rem, calc(100vw - 2rem));">
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Nazione</span>
+                                    <select data-season-country-filter class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
+                                        <option value="">Tutte le nazioni</option>
+                                        @foreach($countries as $country)
+                                            <option value="{{ $country->country_id }}">{{ $country->country_name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Competizione</span>
+                                    <select data-season-competition-filter class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
+                                        <option value="">Tutte le competizioni</option>
+                                        @foreach($leagues->sortBy('name') as $league)
+                                            <option value="{{ \Illuminate\Support\Str::lower($league->name) }}">{{ $league->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Provider</span>
+                                    <select data-season-provider-filter class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
+                                        <option value="">Tutti i provider</option>
+                                        @foreach($leagues->flatMap(fn ($league) => $league->providers)->unique('provider_name')->sortBy('provider_name') as $provider)
+                                            <option value="{{ \Illuminate\Support\Str::lower($provider->provider_name) }}">{{ $provider->provider_name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Mapping</span>
+                                    <input data-season-mapping-filter type="search" placeholder="es. SA, 135..." class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400">
+                                </label>
+                                <label class="space-y-1 sm:col-span-2">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Capability</span>
+                                    <select data-season-capability-filter class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
+                                        <option value="">Tutte le capability</option>
+                                        @foreach($requiredCapabilities as $capability)
+                                            <option value="{{ $capability }}">{{ $capability }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                            </div>
+                            <button type="button" data-season-filter-reset class="mt-3 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Pulisci filtri</button>
+                        </div>
+                    </details>
+                </div>
             </div>
             <div class="mt-4 overflow-x-auto">
                 <table class="w-full text-left text-sm">
-                    <thead class="text-slate-500"><tr><th class="pb-3">Nazione</th><th class="pb-3">Competizione</th><th class="pb-3">Provider</th><th class="pb-3">Mapping</th><th class="pb-3">Ruolo</th><th class="pb-3">Stato</th><th class="pb-3">Piano</th></tr></thead>
+                    <thead class="text-slate-500"><tr><th class="pb-3">Nazione</th><th class="pb-3">Competizione</th><th class="pb-3">Provider</th><th class="pb-3">Mapping</th><th class="pb-3">Capability</th><th class="pb-3">Ruolo</th><th class="pb-3">Stato</th><th class="pb-3">Piano</th></tr></thead>
                     <tbody class="divide-y divide-white/5">
                         @foreach($leagues as $league)
                             @foreach($league->providers as $provider)
-                                <tr data-season-registry-row data-country-id="{{ $league->country_id }}"><td class="py-3 text-slate-400">{{ $league->country_name ?? '—' }}</td><td class="py-3 text-white">{{ $league->name }}</td><td class="py-3 text-slate-300">{{ $provider->provider_name }}</td><td class="py-3 font-mono text-slate-300">{{ $provider->external_id }}</td><td class="py-3 text-slate-400">{{ $provider->role ?? '—' }}</td><td class="py-3 {{ $provider->is_enabled ? 'text-emerald-300' : 'text-slate-500' }}">{{ $provider->is_enabled ? 'Attivo' : 'Disattivato' }}</td><td class="py-3 text-slate-400">{{ $provider->plan ?? '—' }}</td></tr>
+                                <tr
+                                    data-season-registry-row
+                                    data-country-id="{{ $league->country_id }}"
+                                    data-competition="{{ \Illuminate\Support\Str::lower($league->name) }}"
+                                    data-provider="{{ \Illuminate\Support\Str::lower($provider->provider_name) }}"
+                                    data-mapping="{{ \Illuminate\Support\Str::lower($provider->external_id) }}"
+                                    data-capabilities="{{ collect($provider->capabilities)->filter(fn ($status) => $status['configured'])->keys()->implode(' ') }}"
+                                >
+                                    <td class="py-3 text-slate-400">{{ $league->country_name ?? '—' }}</td>
+                                    <td class="py-3 text-white">{{ $league->name }}</td>
+                                    <td class="py-3 text-slate-300">{{ $provider->provider_name }}</td>
+                                    <td class="py-3 font-mono text-slate-300">{{ $provider->external_id }}</td>
+                                    <td class="py-3">
+                                        <div class="flex flex-wrap gap-1.5" data-season-provider-capabilities>
+                                            @foreach($provider->capabilities as $capability => $status)
+                                                @php
+                                                    $badgeClass = $status['ready']
+                                                        ? 'bg-emerald-400/15 text-emerald-200 ring-emerald-300/20'
+                                                        : ($status['configured'] ? 'bg-amber-400/15 text-amber-200 ring-amber-300/20' : 'bg-slate-700/70 text-slate-300 ring-slate-500/20');
+                                                    $label = $status['ready'] ? 'pronta' : ($status['configured'] ? 'da validare' : 'manca');
+                                                    $title = $status['operations'] === []
+                                                        ? "{$capability}: nessuna operation configurata"
+                                                        : "{$capability}: ".implode(', ', $status['operations']);
+                                                @endphp
+                                                <span title="{{ $title }}" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 {{ $badgeClass }}">
+                                                    <span>{{ $capability }}</span>
+                                                    <span class="opacity-80">{{ $label }}</span>
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    </td>
+                                    <td class="py-3 text-slate-400">{{ $provider->role ?? '—' }}</td>
+                                    <td class="py-3 {{ $provider->is_enabled ? 'text-emerald-300' : 'text-slate-500' }}">{{ $provider->is_enabled ? 'Attivo' : 'Disattivato' }}</td>
+                                    <td class="py-3 text-slate-400">{{ $provider->plan ?? '—' }}</td>
+                                </tr>
                             @endforeach
                         @endforeach
-                        <tr data-season-registry-empty class="hidden"><td colspan="7" class="py-5 text-center text-slate-500">Nessuna competizione per la nazione selezionata.</td></tr>
+                        <tr data-season-registry-empty class="hidden"><td colspan="8" class="py-5 text-center text-slate-500">Nessuna competizione per la nazione selezionata.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -133,15 +265,52 @@
             const root = document.querySelector('[data-season-management]');
             if (!root) return;
 
-            const filter = root.querySelector('[data-season-country-filter]');
+            const countryFilter = root.querySelector('[data-season-country-filter]');
+            const competitionFilter = root.querySelector('[data-season-competition-filter]');
+            const providerFilter = root.querySelector('[data-season-provider-filter]');
+            const mappingFilter = root.querySelector('[data-season-mapping-filter]');
+            const capabilityFilter = root.querySelector('[data-season-capability-filter]');
+            const resetFilter = root.querySelector('[data-season-filter-reset]');
             const leagueSelect = root.querySelector('[data-season-league-select]');
             const leagueOptions = Array.from(leagueSelect?.querySelectorAll('option[data-country-id]') ?? []);
             const registryRows = Array.from(root.querySelectorAll('[data-season-registry-row]'));
             const leagueEmpty = root.querySelector('[data-season-filter-empty]');
             const registryEmpty = root.querySelector('[data-season-registry-empty]');
+            const storageKey = 'fanta-oracle:season-registry-filters';
 
-            const applyFilter = () => {
-                const countryId = filter?.value ?? '';
+            const readFilters = () => ({
+                country: countryFilter?.value ?? '',
+                competition: competitionFilter?.value ?? '',
+                provider: providerFilter?.value ?? '',
+                mapping: mappingFilter?.value ?? '',
+                capability: capabilityFilter?.value ?? '',
+            });
+
+            const writeFilters = () => {
+                try {
+                    window.localStorage.setItem(storageKey, JSON.stringify(readFilters()));
+                } catch (_) {
+                }
+            };
+
+            const restoreFilters = () => {
+                try {
+                    const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? '{}');
+                    if (countryFilter && typeof saved.country === 'string') countryFilter.value = saved.country;
+                    if (competitionFilter && typeof saved.competition === 'string') competitionFilter.value = saved.competition;
+                    if (providerFilter && typeof saved.provider === 'string') providerFilter.value = saved.provider;
+                    if (mappingFilter && typeof saved.mapping === 'string') mappingFilter.value = saved.mapping;
+                    if (capabilityFilter && typeof saved.capability === 'string') capabilityFilter.value = saved.capability;
+                } catch (_) {
+                }
+            };
+
+            const applyFilter = (persist = true) => {
+                const countryId = countryFilter?.value ?? '';
+                const competition = competitionFilter?.value ?? '';
+                const provider = providerFilter?.value ?? '';
+                const mapping = (mappingFilter?.value ?? '').trim().toLowerCase();
+                const capability = capabilityFilter?.value ?? '';
                 let visibleLeagues = 0;
                 let visibleRows = 0;
 
@@ -157,17 +326,42 @@
                 }
 
                 registryRows.forEach((row) => {
-                    const show = countryId === '' || row.dataset.countryId === countryId;
+                    const show = (countryId === '' || row.dataset.countryId === countryId)
+                        && (competition === '' || row.dataset.competition === competition)
+                        && (provider === '' || row.dataset.provider === provider)
+                        && (mapping === '' || (row.dataset.mapping ?? '').includes(mapping))
+                        && (capability === '' || (row.dataset.capabilities ?? '').split(' ').includes(capability));
                     row.classList.toggle('hidden', !show);
                     if (show) visibleRows++;
                 });
 
                 leagueEmpty?.classList.toggle('hidden', visibleLeagues !== 0);
                 registryEmpty?.classList.toggle('hidden', visibleRows !== 0);
+
+                if (persist) {
+                    writeFilters();
+                }
             };
 
-            filter?.addEventListener('change', applyFilter);
-            applyFilter();
+            countryFilter?.addEventListener('change', applyFilter);
+            competitionFilter?.addEventListener('change', applyFilter);
+            providerFilter?.addEventListener('change', applyFilter);
+            mappingFilter?.addEventListener('input', applyFilter);
+            capabilityFilter?.addEventListener('change', applyFilter);
+            resetFilter?.addEventListener('click', () => {
+                if (countryFilter) countryFilter.value = '';
+                if (competitionFilter) competitionFilter.value = '';
+                if (providerFilter) providerFilter.value = '';
+                if (mappingFilter) mappingFilter.value = '';
+                if (capabilityFilter) capabilityFilter.value = '';
+                try {
+                    window.localStorage.removeItem(storageKey);
+                } catch (_) {
+                }
+                applyFilter();
+            });
+            restoreFilters();
+            applyFilter(false);
         })();
     </script>
 </x-app-layout>

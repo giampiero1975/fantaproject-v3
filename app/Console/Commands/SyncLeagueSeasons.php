@@ -2,12 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Data\Providers\TeamDataRequest;
-use App\Services\Providers\TeamProviderRegistry;
+use App\Data\Providers\SeasonDataRequest;
+use App\Services\Providers\SeasonProviderRegistry;
 use App\Services\Seasons\LeagueMappingResolver;
 use App\Services\Seasons\SeasonTimelinePlanner;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use RuntimeException;
 use Throwable;
 
@@ -24,7 +25,7 @@ final class SyncLeagueSeasons extends Command
     protected $description = 'Discover and synchronize the current league season and configured historical fallback.';
 
     public function handle(
-        TeamProviderRegistry $registry,
+        SeasonProviderRegistry $registry,
         LeagueMappingResolver $leagueResolver,
         SeasonTimelinePlanner $planner,
     ): int {
@@ -34,6 +35,13 @@ final class SyncLeagueSeasons extends Command
             : (int) config('seasons.history_fallback', 4);
         $apply = (bool) $this->option('apply');
 
+        $this->initializeSeasonSyncLog();
+        $this->seasonSyncLog('info', 'Season sync started.', [
+            'mode' => $apply ? 'apply' : 'dry_run',
+            'history' => $history,
+            'provider_references' => $providerReferences,
+        ]);
+
         try {
             $leagueId = $this->resolveLeagueId($leagueResolver, $providerReferences);
             $currentSeason = $this->option('season') !== null
@@ -41,22 +49,76 @@ final class SyncLeagueSeasons extends Command
                 : (int) now()->year;
             $timeline = $planner->build($currentSeason, $history);
             $rows = [];
+            $providers = $registry->all();
+
+            $this->seasonSyncLog('info', 'Runtime context resolved.', [
+                'league_id' => $leagueId,
+                'current_season' => $currentSeason,
+                'timeline_count' => count($timeline),
+                'season_provider_count' => count($providers),
+                'season_providers' => array_map(fn ($provider): string => $provider->key(), $providers),
+            ]);
 
             foreach ($timeline as $season) {
-                $request = new TeamDataRequest($season['season_key'], $providerReferences);
+                $request = new SeasonDataRequest($season['season_key'], $providerReferences);
+
+                $this->seasonSyncLog('info', 'Season analysis started.', [
+                    'season_key' => $season['season_key'],
+                    'label' => $season['label'],
+                ]);
 
                 $providerResults = [];
-                foreach ($registry->all() as $provider) {
-                    $result = $provider->fetchTeams($request);
+                foreach ($providers as $provider) {
+                    $result = $provider->fetchSeason($request);
                     $providerResults[] = [
                         'provider' => $result->provider,
                         'available' => $result->available,
-                        'teams_count' => count($result->teams),
+                        'external_id' => $result->season?->externalId,
+                        'start_date' => $result->season?->startDate,
+                        'end_date' => $result->season?->endDate,
+                        'metadata' => $result->season?->metadata ?? [],
                         'reason' => $result->reason,
                     ];
+
+                    $this->seasonSyncLog($result->available ? 'info' : 'warning', 'Provider season result.', [
+                        'season_key' => $season['season_key'],
+                        'provider' => $result->provider,
+                        'available' => $result->available,
+                        'external_id' => $result->season?->externalId,
+                        'start_date' => $result->season?->startDate,
+                        'end_date' => $result->season?->endDate,
+                        'reason' => $result->reason,
+                    ]);
                 }
 
-                $dates = ['start_date' => null, 'end_date' => null];
+                $availableSeason = collect($providerResults)
+                    ->first(fn (array $provider): bool => (bool) $provider['available']
+                        && ($provider['start_date'] !== null || $provider['end_date'] !== null));
+
+                if ($availableSeason === null) {
+                    $this->seasonSyncLog('warning', 'No provider available for season dates.', [
+                        'season_key' => $season['season_key'],
+                        'provider_results' => collect($providerResults)
+                            ->map(fn (array $provider): array => [
+                                'provider' => $provider['provider'],
+                                'available' => $provider['available'],
+                                'reason' => $provider['reason'],
+                            ])
+                            ->all(),
+                    ]);
+                } else {
+                    $this->seasonSyncLog('info', 'Season dates selected from provider.', [
+                        'season_key' => $season['season_key'],
+                        'provider' => $availableSeason['provider'],
+                        'start_date' => $availableSeason['start_date'],
+                        'end_date' => $availableSeason['end_date'],
+                    ]);
+                }
+
+                $dates = [
+                    'start_date' => $availableSeason['start_date'] ?? null,
+                    'end_date' => $availableSeason['end_date'] ?? null,
+                ];
 
                 $existing = DB::table('league_seasons')
                     ->join('seasons', 'seasons.id', '=', 'league_seasons.season_id')
@@ -85,6 +147,13 @@ final class SyncLeagueSeasons extends Command
                     'action' => $action,
                     'providers' => $providerResults,
                 ];
+
+                $this->seasonSyncLog('info', 'Season action planned.', [
+                    'season_key' => $season['season_key'],
+                    'action' => $action,
+                    'start_date' => $dates['start_date'],
+                    'end_date' => $dates['end_date'],
+                ]);
             }
 
             $report = [
@@ -110,6 +179,10 @@ final class SyncLeagueSeasons extends Command
             ));
 
             if ($apply) {
+                $this->seasonSyncLog('info', 'Applying season sync changes.', [
+                    'league_id' => $leagueId,
+                    'rows' => count($rows),
+                ]);
                 $this->apply($leagueId, $rows, $providerReferences);
                 $this->components->info('League season timeline synchronized.');
             } else {
@@ -122,6 +195,10 @@ final class SyncLeagueSeasons extends Command
 
             return self::SUCCESS;
         } catch (Throwable $e) {
+            $this->seasonSyncLog('error', 'Season sync failed.', [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
             report($e);
             $this->components->error($e->getMessage());
             return self::FAILURE;
@@ -219,7 +296,12 @@ final class SyncLeagueSeasons extends Command
                         [
                             'external_id' => (string) $providerReferences[$provider['provider']],
                             'external_year' => $row['season_key'],
-                            'metadata' => json_encode(['teams_count' => $provider['teams_count']], JSON_UNESCAPED_UNICODE),
+                            'metadata' => json_encode([
+                                'season_external_id' => $provider['external_id'] ?? null,
+                                'start_date' => $provider['start_date'] ?? null,
+                                'end_date' => $provider['end_date'] ?? null,
+                                'payload' => $provider['metadata'] ?? [],
+                            ], JSON_UNESCAPED_UNICODE),
                             'verified_at' => now(),
                             'updated_at' => now(),
                         ],
@@ -247,5 +329,32 @@ final class SyncLeagueSeasons extends Command
         }
 
         return $references;
+    }
+
+    private function initializeSeasonSyncLog(): void
+    {
+        $directory = storage_path('logs/administration/season_management');
+
+        File::ensureDirectoryExists($directory);
+        File::put($this->seasonSyncLogPath(), '');
+    }
+
+    /**
+     * @param  array<string,mixed>  $context
+     */
+    private function seasonSyncLog(string $level, string $message, array $context = []): void
+    {
+        $level = strtoupper(preg_replace('/[^a-z]+/', '', strtolower($level)) ?: 'info');
+        $timestamp = now()->format('Y-m-d H:i:s');
+        $context = $context === []
+            ? ''
+            : ' '.json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        File::append($this->seasonSyncLogPath(), "[{$timestamp}][season_sync][{$level}] {$message}{$context}".PHP_EOL);
+    }
+
+    private function seasonSyncLogPath(): string
+    {
+        return storage_path('logs/administration/season_management/season_sync.log');
     }
 }

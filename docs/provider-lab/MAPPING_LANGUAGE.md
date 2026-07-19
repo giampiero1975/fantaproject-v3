@@ -283,6 +283,28 @@ Usalo quando vuoi un array di oggetti:
 ]
 ```
 
+## Regola sui dati canonici
+
+I campi canonici devono essere valorizzati solo da valori espliciti presenti nel payload del provider.
+
+Esempio corretto:
+
+```text
+start_date=season.startDate
+end_date=season.endDate
+```
+
+Non dedurre date ufficiali da liste parziali di eventi o da aggregazioni calcolate localmente.
+
+Esempio non ammesso:
+
+```text
+start_date=min(events, dateEvent)
+end_date=max(events, dateEvent)
+```
+
+Se il provider non espone `start_date` e `end_date` espliciti, quel provider non e' valido per alimentare le date ufficiali della capability `seasons`.
+
 ## Errori comuni
 
 Non scrivere:
@@ -318,6 +340,6 @@ Non sono ancora supportati:
 
 - filtri condizionali;
 - trasformazioni di tipo `uppercase`, `date_format`, `replace`;
+- aggregazioni come `min` e `max` per derivare campi canonici;
 - funzioni annidate;
 - path con virgole nei nomi campo.
-
