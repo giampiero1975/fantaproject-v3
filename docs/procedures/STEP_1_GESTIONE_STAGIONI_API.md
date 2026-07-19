@@ -195,28 +195,26 @@ Le date `start_date` e `end_date` vengono conservate anche per validare la coere
 
 ## 8. Comandi CLI
 
-### Stato provider e adapter
+### Stato provider
 
 ```bash
 php artisan providers:status
 ```
 
-Il comando mostra l'unione tra provider registrati nel database e adapter PHP installati registrati in `data_provider_adapter_definitions`.
+Il comando mostra solo provider registrati nel database e configurazioni HTTP salvate nel DB.
 
 ```text
-Code          Registered   Adapter installed   Runtime    State
-football_data YES          YES                 ACTIVE     READY
-api_football  YES          YES                 ACTIVE     READY
-thesportsdb   YES          NO                  DISABLED   ADAPTER REQUIRED
-sportmonks    YES          NO                  DISABLED   ADAPTER REQUIRED
+Code          Registered   Configured   Runtime    State
+provider_a    YES          YES          ACTIVE     READY
+provider_b    YES          YES          DISABLED   CONFIGURED
+provider_c    YES          NO           DISABLED   TO CONFIGURE
 ```
 
 Stati principali:
 
-- `READY`: provider registrato, adapter installato, runtime attivo;
-- `ADAPTER REQUIRED`: provider registrato dalla UI ma adapter PHP non ancora installato;
-- `AVAILABLE TO REGISTER`: adapter PHP disponibile ma provider non ancora registrato nel DB;
-- `DISABLED`: provider registrato con adapter installato, ma runtime spento.
+- `READY`: provider registrato, configurazione HTTP presente, runtime attivo;
+- `CONFIGURED`: provider registrato e configurato, ma runtime spento;
+- `TO CONFIGURE`: provider registrato ma senza endpoint HTTP runtime.
 
 Il comando storico resta disponibile come alias compatibile:
 
@@ -227,19 +225,19 @@ php artisan providers:adapters
 ### Audit dei provider
 
 ```bash
-php artisan season:audit-providers --competition=SA --league-id=135 --season=2024 --json
+php artisan season:audit-providers --provider-ref=provider_a=SA --provider-ref=provider_b=135 --season=2024 --json
 ```
 
 ### Dry-run della timeline
 
 ```bash
-php artisan season:sync --competition=SA --api-league-id=135 --json
+php artisan season:sync --provider-ref=provider_a=SA --provider-ref=provider_b=135 --season=2024 --json
 ```
 
 ### Apply
 
 ```bash
-php artisan season:sync --competition=SA --api-league-id=135 --apply
+php artisan season:sync --provider-ref=provider_a=SA --provider-ref=provider_b=135 --season=2024 --apply
 ```
 
 ### Verifica di idempotenza
@@ -247,7 +245,7 @@ php artisan season:sync --competition=SA --api-league-id=135 --apply
 Dopo l'apply:
 
 ```bash
-php artisan season:sync --competition=SA --api-league-id=135
+php artisan season:sync --provider-ref=provider_a=SA --provider-ref=provider_b=135 --season=2024
 ```
 
 Il risultato atteso è `UNCHANGED` per tutte le stagioni.
@@ -274,19 +272,10 @@ La UI espone due azioni.
 La pagina `Administration -> Provider Management` distingue esplicitamente:
 
 - `Registrato`: il provider esiste in `data_providers`;
-- `Adapter richiesto`: il provider e' configurato nel DB, ma manca l'adapter applicativo;
-- `Attivo`: adapter installato e runtime abilitato.
+- `Configurato`: il provider ha endpoint HTTP/mapping salvati nel DB;
+- `Attivo`: runtime abilitato.
 
-Nel form `Aggiungi provider` e' possibile selezionare un adapter PHP gia' installato. La UI compila automaticamente:
-
-- codice provider;
-- nome visualizzato;
-- nome tecnico della credenziale;
-- capabilities dichiarate dall'adapter.
-
-Se l'adapter non esiste ancora, il provider puo' comunque essere registrato manualmente e rimane in stato `ADAPTER REQUIRED`.
-
-I provider DB-only non sono attivabili dalla UI: il bottone resta disabilitato finche' non viene installato l'adapter PHP.
+Nel form `Aggiungi provider` si registra solo il catalogo DB. La parte operativa nasce dopo, in `Configura e testa`.
 
 ### Provider HTTP Adapter Lab
 

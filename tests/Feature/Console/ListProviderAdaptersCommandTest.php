@@ -10,7 +10,7 @@ final class ListProviderAdaptersCommandTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_provider_status_lists_ready_adapter_required_and_available_to_register_states(): void
+    public function test_provider_status_lists_registered_provider_configuration_states(): void
     {
         $this->insertProvider(
             code: 'football_data',
@@ -43,20 +43,31 @@ final class ListProviderAdaptersCommandTest extends TestCase
                 'capabilities' => ['competitions', 'seasons', 'teams'],
                 'credential_required' => false,
                 'credential_key' => null,
-                'adapter_supported' => false,
-                'onboarding_state' => 'adapter_required',
+                'onboarding_state' => 'configure_runtime',
             ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_http_endpoints')->insert([
+            'data_provider_id' => $providerId,
+            'capability' => 'teams',
+            'operation' => 'by_competition',
+            'method' => 'GET',
+            'endpoint' => 'lookup_all_teams.php',
+            'items_path' => 'teams',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         $this->artisan('providers:status')
             ->expectsTable(
-                ['Code', 'Provider', 'Registered', 'Adapter installed', 'Runtime', 'State'],
+                ['Code', 'Provider', 'Registered', 'Configured', 'Runtime', 'State'],
                 [
-                    ['api_football', 'API-Football', 'NO', 'YES', '-', 'AVAILABLE TO REGISTER'],
-                    ['football_data', 'football-data.org', 'YES', 'YES', 'ACTIVE', 'READY'],
-                    ['thesportsdb', 'TheSportsDB', 'YES', 'NO', 'DISABLED', 'ADAPTER REQUIRED'],
+                    ['football_data', 'football-data.org', 'YES', 'NO', 'ACTIVE', 'TO CONFIGURE'],
+                    ['thesportsdb', 'TheSportsDB', 'YES', 'YES', 'DISABLED', 'CONFIGURED'],
                 ]
             )
             ->assertSuccessful();
@@ -66,11 +77,8 @@ final class ListProviderAdaptersCommandTest extends TestCase
     {
         $this->artisan('providers:adapters')
             ->expectsTable(
-                ['Code', 'Provider', 'Registered', 'Adapter installed', 'Runtime', 'State'],
-                [
-                    ['api_football', 'API-Football', 'NO', 'YES', '-', 'AVAILABLE TO REGISTER'],
-                    ['football_data', 'football-data.org', 'NO', 'YES', '-', 'AVAILABLE TO REGISTER'],
-                ]
+                ['Code', 'Provider', 'Registered', 'Configured', 'Runtime', 'State'],
+                []
             )
             ->assertSuccessful();
     }
@@ -103,8 +111,7 @@ final class ListProviderAdaptersCommandTest extends TestCase
             'plan' => 'Free',
             'metadata' => json_encode([
                 'capabilities' => ['competitions', 'seasons', 'teams'],
-                'adapter_supported' => true,
-                'onboarding_state' => 'ready',
+                'onboarding_state' => 'configure_runtime',
             ]),
             'created_at' => now(),
             'updated_at' => now(),

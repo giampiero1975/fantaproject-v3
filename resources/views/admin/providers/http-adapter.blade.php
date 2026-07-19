@@ -49,7 +49,8 @@
 
                 <div class="mt-4 space-y-2">
                     @forelse ($savedEndpoints as $endpoint)
-                        <article class="grid gap-3 rounded-xl bg-slate-50 p-3 text-xs ring-1 ring-slate-200 xl:grid-cols-[180px_minmax(0,1fr)_auto] xl:items-center">
+                        <article class="grid gap-3 rounded-xl bg-slate-50 p-3 text-xs ring-1 ring-slate-200 lg:grid-cols-[minmax(160px,220px)_minmax(0,1fr)] lg:items-start">
+                            @php($endpointStatus = $endpoint->mapping_validation_status ?? $endpoint->validation_status)
                             <div>
                                 <div class="font-semibold text-slate-950">{{ $endpoint->label ?: "{$endpoint->capability} · {$endpoint->operation}" }}</div>
                                 <div class="mt-1 text-slate-500">{{ $endpoint->capability }} · {{ $endpoint->operation }}</div>
@@ -65,9 +66,9 @@
                                 </div>
                             </div>
 
-                            <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-                                <span class="rounded-full px-2 py-0.5 font-semibold {{ $endpoint->is_enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
-                                    {{ $endpoint->mapping_validation_status ?? $endpoint->validation_status }}
+                            <div class="flex flex-wrap items-center gap-2 lg:col-span-2 lg:justify-end">
+                                <span class="rounded-full px-2 py-0.5 font-semibold {{ $endpointStatus === 'mapping_validated' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                    {{ $endpointStatus }}
                                 </span>
                                 <a href="{{ route('admin.providers.http-adapter.configure', ['provider' => $provider->id, 'capability' => $endpoint->capability, 'operation' => $endpoint->operation]) }}" class="inline-flex rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-700">Carica nel form</a>
                                 <form method="POST" action="{{ route('admin.providers.http-adapter.destroy', [$provider->id, $endpoint->id]) }}" onsubmit="return confirm('Eliminare questa configurazione HTTP salvata? Verranno rimossi anche i mapping dei campi collegati.');">
@@ -384,13 +385,14 @@
                 <div class="mt-3 space-y-3">
                     @forelse ($savedEndpoints as $endpoint)
                         <div class="rounded-xl bg-slate-950/70 p-3 ring-1 ring-white/10">
+                            @php($endpointStatus = $endpoint->mapping_validation_status ?? $endpoint->validation_status)
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <div>
                                     <div class="font-semibold text-white">{{ $endpoint->capability }} · {{ $endpoint->operation }}</div>
                                     <div class="font-mono text-xs text-slate-400">{{ $endpoint->method }} {{ $endpoint->endpoint }}</div>
                                 </div>
-                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $endpoint->is_enabled ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200' }}">
-                                    {{ $endpoint->mapping_validation_status ?? $endpoint->validation_status }}
+                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $endpointStatus === 'mapping_validated' ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200' }}">
+                                    {{ $endpointStatus }}
                                 </span>
                             </div>
                             <dl class="mt-3 grid gap-2 text-xs">

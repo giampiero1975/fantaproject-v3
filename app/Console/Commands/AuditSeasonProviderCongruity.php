@@ -11,8 +11,7 @@ use Throwable;
 final class AuditSeasonProviderCongruity extends Command
 {
     protected $signature = 'season:audit-providers
-        {--competition=SA : football-data.org competition reference}
-        {--league-id=135 : API-Football league reference}
+        {--provider-ref=* : Provider reference as provider_code=external_id}
         {--season=2024 : season start year}
         {--json : print full JSON report}';
 
@@ -21,10 +20,7 @@ final class AuditSeasonProviderCongruity extends Command
     public function handle(TeamProviderRegistry $registry, TeamAuditPlanner $planner): int
     {
         $season = (int) $this->option('season');
-        $request = new TeamDataRequest($season, [
-            'football_data' => strtoupper(trim((string) $this->option('competition'))),
-            'api_football' => (int) $this->option('league-id'),
-        ]);
+        $request = new TeamDataRequest($season, $this->providerReferences());
 
         $this->components->info("DRY-RUN teams / season {$season}");
         $this->line('No database writes will be performed.');
@@ -90,5 +86,25 @@ final class AuditSeasonProviderCongruity extends Command
 
             return self::FAILURE;
         }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function providerReferences(): array
+    {
+        $references = [];
+
+        foreach ((array) $this->option('provider-ref') as $reference) {
+            [$provider, $externalId] = array_pad(explode('=', (string) $reference, 2), 2, '');
+            $provider = trim($provider);
+            $externalId = trim($externalId);
+
+            if ($provider !== '' && $externalId !== '') {
+                $references[$provider] = $externalId;
+            }
+        }
+
+        return $references;
     }
 }

@@ -11,6 +11,19 @@ Laravel = runtime, mapping persistente e import dati
 
 Il mapping finale non vive solo nei file del laboratorio: i file servono a validare request, payload e trasformazioni prima di salvarli nel database applicativo.
 
+## Decisione runtime
+
+Il runtime deve essere guidato dal database.
+
+```text
+Provider DB
+-> HTTP endpoint DB
+-> payload mapping DB
+-> provider HTTP generico
+```
+
+Non esiste piu' un catalogo parallelo di adapter PHP. Per la capability `teams`, `TeamProviderRegistry` legge le configurazioni dal DB e costruisce un `GenericHttpTeamProvider` quando trova un endpoint HTTP abilitato.
+
 ## Ordine di lavoro
 
 ```text

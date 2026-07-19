@@ -3,7 +3,7 @@
 **Progetto:** Fanta Oracle V3  
 **Area:** Provider Management / Setup Dati  
 **Stato:** Documento di implementazione  
-**Obiettivo:** permettere la configurazione guidata da UI di provider HTTP semplici, senza creare subito un adapter PHP dedicato per ogni fonte.
+**Obiettivo:** permettere la configurazione guidata da UI di provider HTTP, senza creare adapter PHP dedicati per singola fonte.
 
 ---
 
@@ -15,7 +15,7 @@ Il provider registry attuale permette di registrare:
 - runtime config;
 - credenziali;
 - stato operativo;
-- adapter PHP nativi gia' installati.
+- endpoint HTTP e mapping salvati nel DB.
 
 Questo pero' non basta per integrare un nuovo provider a partire dalla sola documentazione API.
 
@@ -37,7 +37,7 @@ Quindi serve un adapter HTTP generico configurabile da UI.
 ```text
 Provider registrato
 !=
-Adapter operativo
+Provider pronto runtime
 ```
 
 ### Provider registrato
@@ -51,17 +51,6 @@ data_provider_credentials
 ```
 
 Descrive la fonte dati, il piano, le credenziali e lo stato runtime.
-
-### Native adapter
-
-Classe PHP dedicata, per esempio:
-
-```text
-FootballDataTeamProvider
-ApiFootballTeamProvider
-```
-
-Implementa codice specifico, normalizzazione e gestione payload complessi.
 
 ### HTTP adapter configurabile
 
@@ -77,6 +66,35 @@ field mapping
 ```
 
 e produce il contratto interno Fanta Oracle.
+
+### Decisione runtime DB-driven
+
+Il registry runtime non deve contenere una lista cablata di provider nel codice.
+
+La sorgente primaria e':
+
+```text
+data_providers
+data_provider_runtime_configs
+data_provider_http_endpoints
+data_provider_payload_mappings
+data_provider_configurations
+```
+
+Regole:
+
+- se un provider ha una configurazione HTTP abilitata per la capability richiesta, il runtime usa il provider HTTP generico;
+- non esiste fallback su classi PHP specifiche per provider;
+- autenticazione HTTP, credenziale, header e query auth sono configurazioni DB;
+- `mapping_incomplete` e' diagnostica del mapping, non spegnimento automatico dell'endpoint HTTP.
+
+Stato attuale implementato:
+
+```text
+TeamProviderRegistry
+-> legge provider e endpoint teams dal DB
+-> costruisce GenericHttpTeamProvider quando trova data_provider_http_endpoints.capability = teams
+```
 
 ---
 
@@ -990,25 +1008,13 @@ READY
 DISABLED
 ```
 
-Per la UI:
+Per la UI, un provider senza endpoint HTTP runtime deve essere indicato come:
 
 ```text
-Adapter richiesto
+Da configurare
 ```
 
-deve diventare piu' specifico:
-
-```text
-Configura HTTP adapter
-```
-
-oppure:
-
-```text
-Installa native adapter
-```
-
-quando non esiste mapping HTTP.
+Non esiste piu' uno stato operativo legato all'installazione di adapter PHP specifici.
 
 ---
 
@@ -1041,7 +1047,7 @@ quando non esiste mapping HTTP.
 - admin esegue test request mockata;
 - errore HTTP viene salvato;
 - mapping valido produce preview normalizzata;
-- provider passa da `ADAPTER REQUIRED` a `HTTP_TEST_PASSED`;
+- provider passa da `TO CONFIGURE` a `CONFIGURED`;
 - competitions mapping salva collegamento a lega interna.
 
 ### UI
@@ -1060,7 +1066,7 @@ quando non esiste mapping HTTP.
 
 - creare questa specifica;
 - aggiungere schermata guida in Provider Management;
-- chiarire differenza tra native adapter e HTTP adapter.
+- chiarire differenza tra provider registrato, configurato e attivo.
 
 ### Fase 2 - DB e servizi base
 

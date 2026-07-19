@@ -103,30 +103,32 @@ final class SeasonManagementController extends Controller
             ->join('data_providers as p', 'p.id', '=', 'lpm.data_provider_id')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
             ->where('lpm.league_id', $validated['league_id'])
-            ->whereIn('p.code', ['football_data', 'api_football'])
+            ->where('rc.is_enabled', true)
             ->get(['p.code', 'p.name', 'lpm.external_id', 'lpm.external_name', 'rc.is_enabled', 'rc.priority', 'rc.role', 'rc.plan']);
 
-        $footballData = $mappings->firstWhere('code', 'football_data');
-        $apiFootball = $mappings->firstWhere('code', 'api_football');
-
-        if (! $footballData || ! $apiFootball) {
+        if ($mappings->isEmpty()) {
             throw ValidationException::withMessages([
-                'league_id' => 'La competizione selezionata deve avere mapping per football_data e api_football prima della sincronizzazione.',
+                'league_id' => 'La competizione selezionata deve avere almeno un mapping provider attivo prima della sincronizzazione.',
             ]);
         }
 
+        $providerReferences = $mappings
+            ->mapWithKeys(fn (object $mapping): array => [(string) $mapping->code => (string) $mapping->external_id])
+            ->all();
+
         $parameters = [
             'league_id' => (int) $validated['league_id'],
-            'competition' => strtoupper((string) $footballData->external_id),
-            'api_league_id' => (int) $apiFootball->external_id,
+            'provider_references' => $providerReferences,
             'history' => $validated['history'] !== null ? (int) $validated['history'] : null,
             'providers' => $mappings->map(fn ($row) => (array) $row)->all(),
         ];
 
         $arguments = [
             '--league-id' => $parameters['league_id'],
-            '--competition' => $parameters['competition'],
-            '--api-league-id' => $parameters['api_league_id'],
+            '--provider-ref' => collect($providerReferences)
+                ->map(fn (string $externalId, string $provider): string => "{$provider}={$externalId}")
+                ->values()
+                ->all(),
             '--json' => true,
         ];
 

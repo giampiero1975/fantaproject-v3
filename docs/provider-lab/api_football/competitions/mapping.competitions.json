@@ -3,7 +3,7 @@
   "capability": "competitions",
   "operation": "detail",
   "scope": "league_id",
-  "adapter_type": "native_php",
+  "adapter_type": "generic_http",
   "request": {
     "method": "GET",
     "base_url_source": "data_provider_configurations.base_url",
@@ -37,7 +37,7 @@
     "competition_name",
     "country_name"
   ],
-  "validation_status": "mapped_from_native_adapter",
+  "validation_status": "mapping_validated",
   "runtime_status": {
     "reachable": true,
     "valid_payload": true,

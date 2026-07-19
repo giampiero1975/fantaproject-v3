@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Services\Providers\ProviderAdapterDefinitionRepository;
 use App\Services\Providers\ProviderConfigurationReader;
 use App\Services\Providers\ProviderConfigurationWriter;
+use App\Services\Providers\HttpProviderPayloadMapper;
+use App\Services\Providers\ProviderHttpAuthentication;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
@@ -25,17 +26,6 @@ final class ProviderManagementController extends Controller
     public function index(): View
     {
         $environment = app()->environment();
-        $registeredCodes = DB::table('data_providers')->pluck('code')->all();
-        $adapterDefinitions = app(ProviderAdapterDefinitionRepository::class)->installed();
-        $availableAdapters = $adapterDefinitions
-            ->reject(fn (array $adapter, string $code): bool => in_array($code, $registeredCodes, true))
-            ->map(fn (array $adapter, string $code): array => [
-                'code' => $code,
-                'name' => $adapter['name'] ?? $code,
-                'credential_key' => $adapter['credential_key'] ?? null,
-                'capabilities' => array_values($adapter['capabilities'] ?? []),
-            ])
-            ->values();
 
         $providers = DB::table('data_providers as p')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
@@ -65,23 +55,7 @@ final class ProviderManagementController extends Controller
                         return $credential;
                     });
 
-                $mappings = DB::table('league_provider_mappings as lpm')
-                    ->join('leagues as l', 'l.id', '=', 'lpm.league_id')
-                    ->leftJoin('countries as c', 'c.id', '=', 'l.country_id')
-                    ->where('lpm.data_provider_id', $provider->id)
-                    ->orderBy('c.name')
-                    ->orderBy('l.name')
-                    ->get([
-                        'l.id as league_id',
-                        'l.name as league_name',
-                        'l.country_id',
-                        'c.name as country_name',
-                        'lpm.external_id',
-                        'lpm.external_name',
-                    ]);
-
                 $provider->credentials = $credentials;
-                $provider->mappings = $mappings;
                 $httpMappings = DB::table('data_provider_http_endpoints as e')
                     ->leftJoin('data_provider_payload_mappings as m', 'm.data_provider_http_endpoint_id', '=', 'e.id')
                     ->where('data_provider_id', $provider->id)
@@ -111,20 +85,24 @@ final class ProviderManagementController extends Controller
 
                 $provider->http_mappings = $httpMappings;
                 $provider->http_mappings_count = $httpMappings->count();
-                $provider->adapter_supported = app(ProviderAdapterDefinitionRepository::class)->findInstalled($provider->code) !== null;
                 $provider->metadata_decoded = json_decode((string) $provider->metadata, true) ?: [];
                 $settings = app(ProviderConfigurationReader::class)->values((int) $provider->id);
 
-                foreach (['base_url', 'priority', 'role', 'timeout', 'connect_timeout', 'retry_times', 'retry_sleep_ms', 'plan'] as $key) {
+                foreach (['base_url', 'priority', 'role', 'timeout', 'connect_timeout', 'retry_times', 'retry_sleep_ms', 'plan', 'auth_type', 'credential_key', 'auth_header_name', 'auth_query_param'] as $key) {
                     if (array_key_exists($key, $settings)) {
                         $provider->{$key} = $settings[$key];
                     }
                 }
 
+                $provider->auth_type ??= 'none';
+                $provider->credential_key ??= $provider->metadata_decoded['credential_key'] ?? null;
+                $provider->auth_header_name ??= null;
+                $provider->auth_query_param ??= null;
+
                 return $provider;
             });
 
-        return view('admin.providers.index', compact('providers', 'environment', 'availableAdapters'));
+        return view('admin.providers.index', compact('providers', 'environment'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -153,14 +131,11 @@ final class ProviderManagementController extends Controller
             'capabilities.*' => ['string', 'in:competitions,seasons,teams,fixtures,standings,players,statistics'],
         ]);
 
-        $adapter = app(ProviderAdapterDefinitionRepository::class)->findInstalled($data['code']);
-        $adapterSupported = is_array($adapter);
         $credentialKey = $data['credential_required'] ? ($data['credential_key'] ?? null) : null;
         $capabilities = array_values(array_unique($data['capabilities'] ?? []));
 
         $this->providerLog('provider_registration', 'debug', 'Provider registration validated.', [
             'code' => $data['code'],
-            'adapter_supported' => $adapterSupported,
             'credential_required' => (bool) $data['credential_required'],
             'credential_key' => $credentialKey,
             'capabilities' => $capabilities,
@@ -168,19 +143,19 @@ final class ProviderManagementController extends Controller
 
         $providerId = null;
 
-        DB::transaction(function () use ($data, $adapterSupported, $credentialKey, $capabilities, &$providerId): void {
+        DB::transaction(function () use ($data, $credentialKey, $capabilities, &$providerId): void {
             $providerId = DB::table('data_providers')->insertGetId([
                 'code' => $data['code'],
                 'name' => $data['name'],
                 'base_url' => $data['base_url'],
-                'active' => $adapterSupported,
+                'active' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
             DB::table('data_provider_runtime_configs')->insert([
                 'data_provider_id' => $providerId,
-                'is_enabled' => $adapterSupported,
+                'is_enabled' => false,
                 'priority' => $data['priority'],
                 'role' => $data['role'],
                 'base_url' => $data['base_url'],
@@ -193,8 +168,7 @@ final class ProviderManagementController extends Controller
                     'capabilities' => $capabilities,
                     'credential_required' => (bool) $data['credential_required'],
                     'credential_key' => $credentialKey,
-                    'adapter_supported' => $adapterSupported,
-                    'onboarding_state' => $adapterSupported ? 'ready' : 'adapter_required',
+                    'onboarding_state' => 'configure_runtime',
                 ]),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -212,7 +186,6 @@ final class ProviderManagementController extends Controller
                 'credential_required' => (bool) $data['credential_required'],
                 'credential_key' => $credentialKey,
                 'capabilities' => $capabilities,
-                'adapter_supported' => $adapterSupported,
             ]);
 
             if ($credentialKey !== null) {
@@ -232,15 +205,13 @@ final class ProviderManagementController extends Controller
         $this->providerLog('provider_registration', 'info', 'Provider registration completed.', [
             'code' => $data['code'],
             'provider_id' => $providerId,
-            'runtime_enabled' => $adapterSupported,
-            'onboarding_state' => $adapterSupported ? 'ready' : 'adapter_required',
+            'runtime_enabled' => false,
+            'onboarding_state' => 'configure_runtime',
         ]);
 
         return back()->with(
             'status',
-            $adapterSupported
-                ? 'Provider registrato e attivato nel runtime.'
-                : 'Provider registrato. Rimane disattivato finché non viene installato il relativo adapter applicativo.'
+            'Provider registrato. Configura le chiamate runtime da Provider Management per renderlo operativo.'
         );
     }
 
@@ -277,6 +248,10 @@ final class ProviderManagementController extends Controller
             'connect_timeout' => ['required', 'integer', 'min:1', 'max:120'],
             'retry_times' => ['required', 'integer', 'min:0', 'max:10'],
             'retry_sleep_ms' => ['required', 'integer', 'min:0', 'max:60000'],
+            'auth_type' => ['required', 'in:none,header,query'],
+            'credential_key' => ['nullable', 'string', 'max:120', 'required_unless:auth_type,none'],
+            'auth_header_name' => ['nullable', 'string', 'max:120', 'required_if:auth_type,header'],
+            'auth_query_param' => ['nullable', 'string', 'max:120', 'required_if:auth_type,query'],
         ]);
 
         $this->providerLog('provider_configuration', 'debug', 'Provider configuration validated.', [
@@ -290,6 +265,10 @@ final class ProviderManagementController extends Controller
             'connect_timeout' => (int) $data['connect_timeout'],
             'retry_times' => (int) $data['retry_times'],
             'retry_sleep_ms' => (int) $data['retry_sleep_ms'],
+            'auth_type' => $data['auth_type'],
+            'credential_key' => $data['credential_key'] ?? null,
+            'auth_header_name' => $data['auth_header_name'] ?? null,
+            'auth_query_param' => $data['auth_query_param'] ?? null,
         ]);
 
         DB::transaction(function () use ($provider, $data): void {
@@ -324,6 +303,10 @@ final class ProviderManagementController extends Controller
                 'connect_timeout' => (int) $data['connect_timeout'],
                 'retry_times' => (int) $data['retry_times'],
                 'retry_sleep_ms' => (int) $data['retry_sleep_ms'],
+                'auth_type' => $data['auth_type'],
+                'credential_key' => $data['credential_key'] ?? null,
+                'auth_header_name' => $data['auth_header_name'] ?? null,
+                'auth_query_param' => $data['auth_query_param'] ?? null,
             ]);
         });
 
@@ -344,14 +327,19 @@ final class ProviderManagementController extends Controller
         $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($catalogProvider, 404);
 
-        if (app(ProviderAdapterDefinitionRepository::class)->findInstalled($catalogProvider->code) === null) {
-            $this->providerLog('provider_runtime', 'warning', 'Provider runtime toggle blocked: adapter missing.', [
+        $hasConfiguredHttpRuntime = DB::table('data_provider_http_endpoints')
+            ->where('data_provider_id', $provider)
+            ->where('is_enabled', true)
+            ->exists();
+
+        if (! $hasConfiguredHttpRuntime) {
+            $this->providerLog('provider_runtime', 'warning', 'Provider runtime toggle blocked: no runtime configuration.', [
                 'provider_id' => $provider,
                 'provider_code' => $catalogProvider->code,
             ]);
 
             return back()->withErrors([
-                'provider' => 'Impossibile attivare il provider: adapter applicativo non installato.',
+                'provider' => 'Impossibile attivare il provider: nessuna configurazione runtime disponibile.',
             ]);
         }
 
@@ -389,12 +377,12 @@ final class ProviderManagementController extends Controller
         $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
         abort_unless($catalogProvider, 404);
 
-        $adapter = app(ProviderAdapterDefinitionRepository::class)->findInstalled($catalogProvider->code);
         $runtime = DB::table('data_provider_runtime_configs')->where('data_provider_id', $provider)->first();
         $metadata = json_decode((string) ($runtime->metadata ?? ''), true) ?: [];
-        $credentialKey = is_array($adapter)
-            ? ($adapter['credential_key'] ?? null)
-            : ($metadata['credential_key'] ?? null);
+        $settings = app(ProviderConfigurationReader::class)->values($provider);
+        $credentialKey = $request->input('credential_key')
+            ?: ($settings['credential_key'] ?? null)
+            ?: ($metadata['credential_key'] ?? null);
 
         if (empty($credentialKey)) {
             $this->providerLog('provider_credentials', 'warning', 'Provider credential rotation blocked: credential key missing.', [
@@ -565,7 +553,10 @@ final class ProviderManagementController extends Controller
         $testVariables = $this->parseKeyValueLines($data['test_variables'] ?? '');
         $endpoint = $this->renderTemplate($data['endpoint'], $testVariables);
         $url = $this->buildProviderUrl((string) $providerRow->base_url, $endpoint);
-        $query = $this->renderTemplateArray($this->parseKeyValueLines($data['query_params'] ?? ''), $testVariables);
+        $query = array_merge(
+            app(ProviderHttpAuthentication::class)->queryParameters((int) $providerRow->id),
+            $this->renderTemplateArray($this->parseKeyValueLines($data['query_params'] ?? ''), $testVariables),
+        );
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
         $unknownFields = $this->unknownContractFields($data['capability'], $data['operation'], $fieldMappings);
 
@@ -783,7 +774,7 @@ final class ProviderManagementController extends Controller
                     'query_params' => $query !== [] ? json_encode($query, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
                     'body_template' => filled($data['body_template'] ?? '') ? json_encode($this->parseJsonBody($data['body_template']), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
                     'items_path' => $data['items_path'] ?: null,
-                    'is_enabled' => $mappingStatus === 'mapping_validated',
+                    'is_enabled' => true,
                     'validation_status' => $testBelongsToCurrentForm && ($testResult['ok'] ?? false)
                         ? 'test_passed'
                         : 'saved_not_tested',
@@ -820,7 +811,7 @@ final class ProviderManagementController extends Controller
             'capability' => $data['capability'],
             'operation' => $data['operation'],
             'mapping_status' => $mappingStatus,
-            'is_enabled' => $mappingStatus === 'mapping_validated',
+            'is_enabled' => true,
             'last_status_code' => $testBelongsToCurrentForm ? ($testResult['status'] ?? null) : null,
         ]);
 
@@ -1368,38 +1359,8 @@ final class ProviderManagementController extends Controller
     private function httpAdapterRequest(object $provider): \Illuminate\Http\Client\PendingRequest
     {
         $request = Http::timeout(15)->acceptJson();
-        $adapter = app(ProviderAdapterDefinitionRepository::class)->findInstalled((string) $provider->code);
 
-        if (! is_array($adapter) || blank($adapter['credential_key'] ?? null)) {
-            return $request;
-        }
-
-        $credential = DB::table('data_provider_credentials')
-            ->where('data_provider_id', $provider->id)
-            ->where('environment', app()->environment())
-            ->where('credential_key', $adapter['credential_key'])
-            ->where('is_active', true)
-            ->first();
-
-        if (! $credential) {
-            return $request;
-        }
-
-        try {
-            $value = Crypt::decryptString($credential->encrypted_value);
-        } catch (Throwable) {
-            return $request;
-        }
-
-        if ($value === '') {
-            return $request;
-        }
-
-        return match ((string) $provider->code) {
-            'football_data' => $request->withHeaders(['X-Auth-Token' => $value]),
-            'api_football' => $request->withHeaders(['x-apisports-key' => $value]),
-            default => $request,
-        };
+        return app(ProviderHttpAuthentication::class)->applyHeaders($request, (int) $provider->id);
     }
 
     /**
@@ -1439,15 +1400,7 @@ final class ProviderManagementController extends Controller
      */
     private function extractItems(mixed $payload, ?string $itemsPath): array
     {
-        $items = filled($itemsPath)
-            ? data_get($payload, (string) $itemsPath)
-            : $payload;
-
-        if (! is_array($items)) {
-            return [];
-        }
-
-        return Arr::isAssoc($items) ? [$items] : array_values($items);
+        return app(HttpProviderPayloadMapper::class)->extractItems($payload, $itemsPath);
     }
 
     /**
@@ -1457,11 +1410,7 @@ final class ProviderManagementController extends Controller
      */
     private function mapFields(array $item, array $fieldMappings): array
     {
-        return collect($fieldMappings)
-            ->mapWithKeys(fn (string $sourcePath, string $targetField): array => [
-                $targetField => $this->mappedValue($item, $sourcePath),
-            ])
-            ->all();
+        return app(HttpProviderPayloadMapper::class)->mapFields($item, $fieldMappings);
     }
 
     /**
@@ -1469,65 +1418,7 @@ final class ProviderManagementController extends Controller
      */
     private function mappedValue(array $item, string $sourcePath): mixed
     {
-        if (preg_match('/^pluck\(([^,]+),\s*([^)]+)\)$/', trim($sourcePath), $matches) === 1) {
-            $items = data_get($item, trim($matches[1]));
-            $valuePath = trim($matches[2]);
-
-            if (! is_array($items)) {
-                return [];
-            }
-
-            $items = Arr::isAssoc($items) ? [$items] : $items;
-
-            return collect($items)
-                ->map(fn (mixed $nestedItem): mixed => is_array($nestedItem)
-                    ? data_get($nestedItem, $valuePath)
-                    : null)
-                ->filter(fn (mixed $value): bool => $value !== null)
-                ->values()
-                ->all();
-        }
-
-        if (preg_match('/^map\(([^,]+),\s*(.+)\)$/', trim($sourcePath), $matches) === 1) {
-            $items = data_get($item, trim($matches[1]));
-            $nestedMappings = $this->parseInlineMappings(trim($matches[2]));
-
-            if (! is_array($items) || $nestedMappings === []) {
-                return [];
-            }
-
-            $items = Arr::isAssoc($items) ? [$items] : $items;
-
-            return collect($items)
-                ->filter(fn (mixed $nestedItem): bool => is_array($nestedItem))
-                ->map(fn (array $nestedItem): array => collect($nestedMappings)
-                    ->mapWithKeys(fn (string $nestedSourcePath, string $nestedTargetField): array => [
-                        $nestedTargetField => data_get($nestedItem, $nestedSourcePath),
-                    ])
-                    ->all())
-                ->values()
-                ->all();
-        }
-
-        return data_get($item, $sourcePath);
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function parseInlineMappings(string $value): array
-    {
-        return collect(explode(',', $value))
-            ->mapWithKeys(function (string $pair): array {
-                [$field, $path] = array_pad(explode('=', $pair, 2), 2, null);
-                $field = trim((string) $field);
-                $path = trim((string) $path);
-
-                return $field !== '' && $path !== ''
-                    ? [$field => $path]
-                    : [];
-            })
-            ->all();
+        return app(HttpProviderPayloadMapper::class)->mappedValue($item, $sourcePath);
     }
 
     private function limitPayload(mixed $payload): mixed

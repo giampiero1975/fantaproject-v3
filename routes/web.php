@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
-use App\Http\Controllers\Admin\AvailableProviderAdaptersController;
 use App\Http\Controllers\Admin\ProviderManagementController;
 use App\Http\Controllers\Admin\SeasonManagementController;
 use Illuminate\Support\Facades\Route;
@@ -33,7 +32,6 @@ Route::middleware([
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
     Route::get('/providers', [ProviderManagementController::class, 'index'])->name('providers.index');
-    Route::get('/providers/available-adapters', AvailableProviderAdaptersController::class)->name('providers.available-adapters');
     Route::post('/providers', [ProviderManagementController::class, 'store'])->name('providers.store');
     Route::put('/providers/{provider}', [ProviderManagementController::class, 'update'])->name('providers.update');
     Route::patch('/providers/{provider}/toggle', [ProviderManagementController::class, 'toggle'])->name('providers.toggle');

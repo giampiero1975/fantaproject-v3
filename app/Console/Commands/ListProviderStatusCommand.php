@@ -15,7 +15,7 @@ final class ListProviderStatusCommand extends Command
     {
         $rows = $statusTable->rows();
 
-        $this->table(['Code', 'Provider', 'Registered', 'Adapter installed', 'Runtime', 'State'], $rows);
+        $this->table(['Code', 'Provider', 'Registered', 'Configured', 'Runtime', 'State'], $rows);
 
         if ($rows === []) {
             $this->warn('No provider adapters are declared and no providers are registered.');

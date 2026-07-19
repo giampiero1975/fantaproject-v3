@@ -2,8 +2,6 @@
 
 namespace App\Support\Providers;
 
-use App\Services\Providers\ProviderAdapterDefinitionRepository;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 final class ProviderStatusTable
@@ -13,7 +11,6 @@ final class ProviderStatusTable
      */
     public function rows(): array
     {
-        $catalog = app(ProviderAdapterDefinitionRepository::class)->installed();
         $registered = DB::table('data_providers as p')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
             ->get([
@@ -24,39 +21,31 @@ final class ProviderStatusTable
                 'rc.metadata',
             ])
             ->keyBy('code');
+        $httpConfigured = DB::table('data_provider_http_endpoints as e')
+            ->join('data_providers as p', 'p.id', '=', 'e.data_provider_id')
+            ->where('e.is_enabled', true)
+            ->pluck('p.code')
+            ->flip();
 
-        return $this->codes($catalog, $registered)
-            ->map(function (string $code) use ($catalog, $registered): array {
-                $adapter = $catalog->get($code);
+        return $registered
+            ->keys()
+            ->sort()
+            ->values()
+            ->map(function (string $code) use ($registered, $httpConfigured): array {
                 $provider = $registered->get($code);
-                $adapterInstalled = is_array($adapter);
+                $hasHttpAdapter = $httpConfigured->has($code);
 
                 return [
                     $code,
-                    $adapter['name'] ?? $provider->name ?? $code,
+                    $provider->name ?? $code,
                     $provider ? 'YES' : 'NO',
-                    $adapterInstalled ? 'YES' : 'NO',
+                    $hasHttpAdapter ? 'YES' : 'NO',
                     $this->runtime($provider),
-                    $this->state($adapterInstalled, $provider),
+                    $this->state($hasHttpAdapter, $provider),
                 ];
             })
             ->values()
             ->all();
-    }
-
-    /**
-     * @param  Collection<string, array<string, mixed>>  $catalog
-     * @param  Collection<string, object>  $registered
-     * @return Collection<int, string>
-     */
-    private function codes(Collection $catalog, Collection $registered): Collection
-    {
-        return $catalog
-            ->keys()
-            ->merge($registered->keys())
-            ->unique()
-            ->sort()
-            ->values();
     }
 
     private function runtime(?object $provider): string
@@ -70,18 +59,18 @@ final class ProviderStatusTable
             : 'DISABLED';
     }
 
-    private function state(bool $adapterInstalled, ?object $provider): string
+    private function state(bool $hasHttpAdapter, ?object $provider): string
     {
         if (! $provider) {
             return 'AVAILABLE TO REGISTER';
         }
 
-        if (! $adapterInstalled) {
-            return 'ADAPTER REQUIRED';
+        if ($hasHttpAdapter) {
+            return (bool) $provider->active && (bool) $provider->is_enabled
+                ? 'READY'
+                : 'CONFIGURED';
         }
 
-        return (bool) $provider->active && (bool) $provider->is_enabled
-            ? 'READY'
-            : 'DISABLED';
+        return 'TO CONFIGURE';
     }
 }

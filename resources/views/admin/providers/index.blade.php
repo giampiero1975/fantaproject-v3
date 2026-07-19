@@ -23,8 +23,8 @@
         <section class="rounded-2xl bg-slate-800/65 p-5 shadow-lg shadow-black/10">
             <div class="grid gap-5 text-sm md:grid-cols-2 xl:grid-cols-5">
                 <div><h2 class="font-semibold text-white">Registrato</h2><p class="mt-2 leading-6 text-slate-300">Il provider esiste nel DB con configurazione runtime, credenziali e metadata.</p></div>
-                <div><h2 class="font-semibold text-white">Adapter richiesto</h2><p class="mt-2 leading-6 text-slate-300">Il provider è salvato, ma manca ancora il codice PHP che normalizza le risposte.</p></div>
-                <div><h2 class="font-semibold text-white">Attivo</h2><p class="mt-2 leading-6 text-slate-300">Il provider ha adapter installato ed è abilitato per le procedure runtime.</p></div>
+                <div><h2 class="font-semibold text-white">Configurato</h2><p class="mt-2 leading-6 text-slate-300">Il provider ha chiamate o runtime definiti nel DB.</p></div>
+                <div><h2 class="font-semibold text-white">Attivo</h2><p class="mt-2 leading-6 text-slate-300">Il provider è abilitato per le procedure compatibili.</p></div>
                 <div><h2 class="font-semibold text-white">Se disattivi</h2><p class="mt-2 leading-6 text-slate-300">Il provider non viene più usato nelle nuove chiamate. Storico, mapping e credenziali restano salvati.</p></div>
                 <div><h2 class="font-semibold text-white">Priorità</h2><p class="mt-2 leading-6 text-slate-300"><strong class="text-emerald-300">10</strong> viene provato prima di <strong class="text-amber-300">20</strong>. Il numero non indica qualità.</p></div>
             </div>
@@ -35,16 +35,25 @@
                 @php
                     $knownPlans = ['Free', 'Basic', 'Pro', 'Enterprise'];
                     $hasCustomPlan = filled($provider->plan) && ! in_array($provider->plan, $knownPlans, true);
-                    $requiresAdapter = ! $provider->adapter_supported;
-                    $runtimeReady = $provider->adapter_supported && $provider->is_enabled;
+                    $hasHttpAdapter = $provider->http_mappings_count > 0;
+                    $httpCapabilities = $provider->http_mappings->pluck('capability')->unique()->values();
+                    $hasTeamsHttpAdapter = $httpCapabilities->contains('teams');
+                    $hasRuntimeConfiguration = $hasHttpAdapter;
+                    $runtimeReady = $hasRuntimeConfiguration && $provider->is_enabled;
                 @endphp
 
                 <x-fo-accordion :title="$provider->name" :subtitle="$provider->code" bodyClass="bg-slate-100 text-slate-900">
                     <x-slot:badge>
-                        @if ($requiresAdapter)
-                            <span class="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-semibold text-amber-200">Adapter richiesto</span>
+                        @if ($hasRuntimeConfiguration)
+                            <span class="inline-flex shrink-0 items-center rounded-full bg-sky-500/20 px-2.5 py-1 text-xs font-semibold text-sky-100 ring-1 ring-sky-300/20">Configurato</span>
                         @else
-                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $runtimeReady ? 'bg-emerald-400/15 text-emerald-200' : 'bg-slate-700 text-slate-300' }}">{{ $runtimeReady ? 'Attivo' : 'Disattivato' }}</span>
+                            <span class="inline-flex shrink-0 items-center rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-100 ring-1 ring-amber-300/20">Da configurare</span>
+                        @endif
+
+                        @if ($runtimeReady)
+                            <span class="inline-flex shrink-0 items-center rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-100 ring-1 ring-emerald-300/20">Attivo</span>
+                        @else
+                            <span class="inline-flex shrink-0 items-center rounded-full bg-slate-600/70 px-2.5 py-1 text-xs font-semibold text-slate-100 ring-1 ring-slate-400/20">Non attivo</span>
                         @endif
                     </x-slot:badge>
 
@@ -53,50 +62,64 @@
                         <span>Ruolo: <strong class="text-slate-200">{{ ucfirst($provider->role ?? 'non configurato') }}</strong></span>
                         <span>Priorità: <strong class="text-slate-200">{{ $provider->priority ?? '—' }}</strong></span>
                         <span>Piano: <strong class="text-slate-200">{{ $provider->plan ?: 'non indicato' }}</strong></span>
-                        <span>Mapping leghe: <strong class="text-slate-200">{{ $provider->mappings->count() }}</strong></span>
                         <span>HTTP mapping: <strong class="text-slate-200">{{ $provider->http_mappings_count }}</strong></span>
-                        <span>Adapter: <strong class="text-slate-200">{{ $provider->adapter_supported ? 'installato' : 'richiesto' }}</strong></span>
+                        @if ($hasHttpAdapter)
+                            <span>HTTP capability: <strong class="text-slate-200">{{ $httpCapabilities->implode(', ') }}</strong></span>
+                        @endif
+                        <span>Runtime: <strong class="text-slate-200">{{ $hasRuntimeConfiguration ? 'configurato' : 'da configurare' }}</strong></span>
                     </x-slot:meta>
 
                     <div class="grid gap-4 xl:grid-cols-3">
-                        <div class="rounded-xl {{ $requiresAdapter ? 'bg-amber-50 text-amber-950 ring-amber-200' : 'bg-emerald-50 text-emerald-950 ring-emerald-200' }} p-4 ring-1">
-                            <h3 class="font-semibold">Stato corrente: {{ $requiresAdapter ? 'ADAPTER RICHIESTO' : ($runtimeReady ? 'ATTIVO' : 'DISATTIVATO') }}</h3>
+                        <div class="rounded-xl {{ $runtimeReady ? 'bg-emerald-50 text-emerald-950 ring-emerald-200' : ($hasRuntimeConfiguration ? 'bg-blue-50 text-blue-950 ring-blue-200' : 'bg-amber-50 text-amber-950 ring-amber-200') }} p-4 ring-1">
+                            <h3 class="font-semibold">Stato corrente: {{ $runtimeReady ? 'ATTIVO' : ($hasRuntimeConfiguration ? 'CONFIGURATO' : 'DA CONFIGURARE') }}</h3>
                             <p class="mt-2 text-sm leading-5">
-                                @if ($requiresAdapter)
-                                    Il provider è registrato nel DB ma non può essere usato finché non viene installato il relativo adapter PHP.
+                                @if ($hasHttpAdapter)
+                                    Hai configurato via UI: <strong>{{ $httpCapabilities->implode(', ') }}</strong>. Ogni procedura richiede la propria capability.
+                                @elseif (! $hasRuntimeConfiguration)
+                                    Il provider è registrato nel DB, ma non ha ancora chiamate runtime configurate.
                                 @else
                                     {{ $runtimeReady ? 'Il sistema può utilizzare questo provider nelle procedure compatibili.' : 'Il provider è escluso dalle nuove chiamate runtime.' }}
                                 @endif
                             </p>
-                            <p class="mt-3 text-xs font-medium">Mapping leghe: {{ $provider->mappings->count() }} · HTTP mapping: {{ $provider->http_mappings_count }}</p>
+                            <div class="mt-3 space-y-1 text-xs font-medium">
+                                <p>HTTP mapping: {{ $provider->http_mappings_count }}</p>
+                                <p>Runtime squadre: <span class="{{ $hasTeamsHttpAdapter ? 'text-emerald-700' : 'text-amber-700' }}">{{ $hasTeamsHttpAdapter ? 'pronto' : 'non pronto, manca endpoint teams' }}</span></p>
+                            </div>
                         </div>
 
                         <div class="rounded-xl bg-amber-50 p-4 text-amber-950 ring-1 ring-amber-200">
-                            <h3 class="font-semibold">Cosa succede se lo disattivi?</h3>
-                            <ul class="mt-2 list-disc space-y-1 pl-5 text-sm leading-5">
-                                <li>non verrà più usato nelle nuove sincronizzazioni;</li>
-                                <li>verrà provato il provider con priorità successiva;</li>
-                                <li>se manca un fallback, alcune procedure possono fallire;</li>
-                                <li>lo storico non viene eliminato.</li>
-                            </ul>
+                            <h3 class="font-semibold">Cosa manca per usarlo?</h3>
+                            @if ($hasHttpAdapter && ! $hasTeamsHttpAdapter)
+                                <p class="mt-2 text-sm leading-5">Al momento questo provider e' configurato solo per <strong>{{ $httpCapabilities->implode(', ') }}</strong>. Per entrare nel runtime squadre serve aggiungere una chiamata HTTP con capability <strong>teams</strong>.</p>
+                            @elseif ($hasTeamsHttpAdapter)
+                                <p class="mt-2 text-sm leading-5">Il provider ha una configurazione compatibile con il runtime squadre.</p>
+                            @else
+                                <ul class="mt-2 list-disc space-y-1 pl-5 text-sm leading-5">
+                                    <li>non verrà più usato nelle nuove sincronizzazioni;</li>
+                                    <li>verrà provato il provider con priorità successiva;</li>
+                                    <li>se manca un fallback, alcune procedure possono fallire;</li>
+                                    <li>lo storico non viene eliminato.</li>
+                                </ul>
+                            @endif
                             <form method="POST" action="{{ route('admin.providers.toggle', $provider->id) }}" class="mt-3">
                                 @csrf @method('PATCH')
-                                <button @disabled($requiresAdapter) class="rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 {{ $runtimeReady ? 'bg-amber-200 text-amber-950 hover:bg-amber-300' : 'bg-emerald-200 text-emerald-950 hover:bg-emerald-300' }}">{{ $requiresAdapter ? 'Installa adapter per attivare' : ($runtimeReady ? 'Disattiva provider' : 'Riattiva provider') }}</button>
+                                <button @disabled(! $hasRuntimeConfiguration) class="rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 {{ $runtimeReady ? 'bg-amber-200 text-amber-950 hover:bg-amber-300' : 'bg-emerald-200 text-emerald-950 hover:bg-emerald-300' }}">{{ ! $hasRuntimeConfiguration ? 'Configura runtime' : ($runtimeReady ? 'Disattiva provider' : 'Riattiva provider') }}</button>
                             </form>
                         </div>
 
                         <div class="rounded-xl bg-blue-50 p-4 text-blue-950 ring-1 ring-blue-200">
-                            <h3 class="font-semibold">HTTP adapter</h3>
-                            <p class="mt-2 text-sm leading-5">Configura endpoint, query, test request e mapping JSON per provider senza adapter nativo.</p>
+                            <h3 class="font-semibold">Chiamate configurate</h3>
+                            <p class="mt-2 text-sm leading-5">Configura endpoint, query, test request e mapping JSON del provider.</p>
                             <div class="mt-3 space-y-2">
                                 @forelse ($provider->http_mappings as $httpMapping)
                                     <div class="rounded-lg bg-white p-3 text-xs ring-1 ring-blue-200">
+                                        @php($httpMappingStatus = $httpMapping->mapping_validation_status ?? $httpMapping->validation_status)
                                         <div class="flex flex-wrap items-center justify-between gap-2">
                                             <div>
                                                 <strong class="text-blue-950">{{ $httpMapping->label ?: "{$httpMapping->capability} · {$httpMapping->operation}" }}</strong>
                                                 <div class="mt-0.5 text-blue-700">{{ $httpMapping->capability }} · {{ $httpMapping->operation }}</div>
                                             </div>
-                                            <span class="{{ $httpMapping->is_enabled ? 'text-emerald-700' : 'text-amber-700' }}">{{ $httpMapping->mapping_validation_status ?? $httpMapping->validation_status }}</span>
+                                            <span class="{{ $httpMappingStatus === 'mapping_validated' ? 'text-emerald-700' : 'text-amber-700' }}">{{ $httpMappingStatus }}</span>
                                         </div>
                                         <div class="mt-2 break-all font-mono text-blue-900">{{ $httpMapping->method }} {{ $httpMapping->endpoint }}</div>
                                         @if (! empty($httpMapping->query_params_decoded))
@@ -169,16 +192,36 @@
                                 <label class="space-y-1"><span class="text-xs text-slate-700">Timeout connessione</span><input type="number" name="connect_timeout" value="{{ $provider->connect_timeout ?? 10 }}" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300"></label>
                                 <label class="space-y-1"><span class="text-xs text-slate-700">Retry</span><input type="number" name="retry_times" value="{{ $provider->retry_times ?? 3 }}" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300"></label>
                                 <label class="space-y-1"><span class="text-xs text-slate-700">Pausa retry (ms)</span><input type="number" name="retry_sleep_ms" value="{{ $provider->retry_sleep_ms ?? 500 }}" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300"></label>
+                                <label class="space-y-1">
+                                    <span class="text-xs text-slate-700">Autenticazione HTTP</span>
+                                    <select name="auth_type" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                                        <option value="none" @selected(($provider->auth_type ?? 'none') === 'none')>Nessuna</option>
+                                        <option value="header" @selected(($provider->auth_type ?? 'none') === 'header')>Header</option>
+                                        <option value="query" @selected(($provider->auth_type ?? 'none') === 'query')>Query param</option>
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs text-slate-700">Nome credenziale</span>
+                                    <input name="credential_key" value="{{ $provider->credential_key }}" placeholder="es. token, api_key" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs text-slate-700">Nome header</span>
+                                    <input name="auth_header_name" value="{{ $provider->auth_header_name }}" placeholder="es. Authorization oppure x-api-key" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs text-slate-700">Query param auth</span>
+                                    <input name="auth_query_param" value="{{ $provider->auth_query_param }}" placeholder="es. api_key" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                                </label>
                             </div>
                         </details>
 
                         <button class="w-full rounded-lg bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-500">Salva configurazione provider</button>
                     </form>
 
-                    <div class="mt-5 grid gap-5 xl:grid-cols-2">
+                    <div class="mt-5 grid gap-5">
                         <section class="rounded-xl bg-white p-4 ring-1 ring-slate-300">
                             <h3 class="text-sm font-semibold text-slate-900">Credenziale in uso</h3>
-                            <p class="mt-1 text-xs text-slate-500">Il nome tecnico è definito dall’adapter e non deve essere scelto manualmente.</p>
+                            <p class="mt-1 text-xs text-slate-500">Il nome tecnico è definito dalla configurazione provider e non deve essere scelto manualmente.</p>
                             <div class="mt-3 space-y-4 text-sm">
                                 @forelse ($provider->credentials as $credential)
                                     <div class="rounded-lg bg-slate-100 p-3">
@@ -202,41 +245,6 @@
                                 @endforelse
                             </div>
                         </section>
-
-                        <section class="rounded-xl bg-white p-4 ring-1 ring-slate-300" data-mapping-section>
-                            @php
-                                $mappingCountries = $provider->mappings
-                                    ->filter(fn ($mapping) => $mapping->country_id !== null)
-                                    ->unique('country_id')
-                                    ->sortBy('country_name');
-                            @endphp
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div><h3 class="text-sm font-semibold text-slate-900">Mapping competizioni</h3><p class="mt-1 text-xs text-slate-500">Collegamenti tra lega interna e identificativo del provider.</p></div>
-                                <details class="relative">
-                                    <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-slate-100 text-slate-700 ring-1 ring-slate-300 hover:bg-slate-200 [&::-webkit-details-marker]:hidden" title="Filtra per nazione" aria-label="Filtra mapping per nazione">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4.5h18l-7 8v5.25l-4 1.75v-7L3 4.5Z" /></svg>
-                                    </summary>
-                                    <div class="absolute right-0 z-20 mt-2 w-64 rounded-xl bg-white p-3 shadow-xl ring-1 ring-slate-300">
-                                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Nazione</label>
-                                        <select data-country-filter class="mt-2 w-full rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
-                                            <option value="">Tutte le nazioni</option>
-                                            @foreach ($mappingCountries as $country)<option value="{{ $country->country_id }}">{{ $country->country_name ?? 'Nazione non indicata' }}</option>@endforeach
-                                        </select>
-                                    </div>
-                                </details>
-                            </div>
-                            <div class="mt-3 space-y-2">
-                                @forelse($provider->mappings as $mapping)
-                                    <div data-mapping-row data-country-id="{{ $mapping->country_id }}" class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 py-3">
-                                        <div><div class="font-medium text-slate-900">{{ $mapping->league_name }}</div><div class="text-xs text-slate-500">{{ $mapping->country_name ?? 'Nazione non indicata' }} · {{ $mapping->external_name }}</div></div>
-                                        <div class="rounded-md bg-slate-800 px-2.5 py-1 font-mono text-xs text-white">{{ $mapping->external_id }}</div>
-                                    </div>
-                                @empty
-                                    <p class="py-3 text-slate-500">Nessun mapping registrato.</p>
-                                @endforelse
-                                <p data-mapping-empty class="hidden py-4 text-sm text-slate-500">Nessun mapping per la nazione selezionata.</p>
-                            </div>
-                        </section>
                     </div>
                 </x-fo-accordion>
             @endforeach
@@ -246,29 +254,11 @@
             <x-fo-accordion title="Aggiungi provider" subtitle="Usa questa funzione solo quando stai integrando una nuova fonte dati." bodyClass="bg-slate-100 text-slate-900">
                 <div class="mb-5 rounded-xl bg-blue-50 p-4 text-sm text-blue-950 ring-1 ring-blue-200">
                     <h3 class="font-semibold">Prima di registrare un provider</h3>
-                    <p class="mt-2 leading-5">Questa funzione salva catalogo, configurazione runtime e credenziale. Il provider diventa realmente utilizzabile solo quando esiste anche il relativo adapter applicativo che normalizza le sue risposte.</p>
+                    <p class="mt-2 leading-5">Questa funzione salva catalogo, configurazione runtime e credenziale. Le chiamate operative vanno poi definite in Provider Management tramite endpoint e mapping.</p>
                 </div>
 
                 <form method="POST" action="{{ route('admin.providers.store') }}" class="grid gap-4 md:grid-cols-4">
                     @csrf
-                    <div class="space-y-1 md:col-span-4">
-                        <label class="text-xs font-medium text-slate-700">Adapter installato disponibile</label>
-                        <select data-installed-adapter class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
-                            <option value="">Configurazione manuale o adapter non ancora installato</option>
-                            @foreach ($availableAdapters as $adapter)
-                                <option
-                                    value="{{ $adapter['code'] }}"
-                                    data-code="{{ $adapter['code'] }}"
-                                    data-name="{{ $adapter['name'] }}"
-                                    data-credential-key="{{ $adapter['credential_key'] }}"
-                                    data-capabilities='@json($adapter['capabilities'])'
-                                >
-                                    {{ $adapter['name'] }} · {{ $adapter['code'] }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <span class="block text-[11px] text-slate-500">Seleziona un adapter PHP gia' installato per compilare automaticamente codice, nome tecnico, credenziale e capabilities.</span>
-                    </div>
                     <label class="space-y-1"><span class="text-xs font-medium text-slate-700">Codice provider</span><input name="code" placeholder="es. thesportsdb" autocomplete="off" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300" required><span class="block text-[11px] text-slate-500">Puoi scrivere anche TheSportsDB: verrà salvato come codice tecnico minuscolo.</span></label>
                     <label class="space-y-1"><span class="text-xs font-medium text-slate-700">Nome visualizzato</span><input name="name" placeholder="es. Sportmonks" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300" required></label>
                     <label class="space-y-1 md:col-span-2"><span class="text-xs font-medium text-slate-700">Base URL API</span><input name="base_url" placeholder="https://api.example.com" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300" required></label>
@@ -283,7 +273,7 @@
                         <input type="text" data-plan-custom placeholder="Nome del piano" class="hidden w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
                         <span class="block text-[11px] text-slate-500">Solo riferimento amministrativo.</span>
                     </div>
-                    <label class="space-y-1"><span class="text-xs font-medium text-slate-700">Nome tecnico credenziale</span><input name="credential_key" placeholder="es. api_token" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300"><span class="block text-[11px] text-slate-500">Deve corrispondere al nome richiesto dall’adapter.</span></label>
+                    <label class="space-y-1"><span class="text-xs font-medium text-slate-700">Nome tecnico credenziale</span><input name="credential_key" placeholder="es. api_token" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300"><span class="block text-[11px] text-slate-500">Deve corrispondere al nome richiesto dal provider.</span></label>
                     <label class="space-y-1 md:col-span-2"><span class="text-xs font-medium text-slate-700">Valore credenziale</span><input type="text" name="credential_value" placeholder="Token o API key" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300"></label>
                     <div class="md:col-span-4"><button class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500">Registra nuovo provider</button></div>
                 </form>
@@ -308,20 +298,5 @@
             syncPlan();
         });
 
-        document.querySelectorAll('[data-mapping-section]').forEach((section) => {
-            const select = section.querySelector('[data-country-filter]');
-            const rows = Array.from(section.querySelectorAll('[data-mapping-row]'));
-            const empty = section.querySelector('[data-mapping-empty]');
-
-            select?.addEventListener('change', () => {
-                let visible = 0;
-                rows.forEach((row) => {
-                    const show = select.value === '' || row.dataset.countryId === select.value;
-                    row.classList.toggle('hidden', !show);
-                    if (show) visible++;
-                });
-                empty?.classList.toggle('hidden', visible !== 0 || rows.length === 0);
-            });
-        });
     </script>
 </x-app-layout>

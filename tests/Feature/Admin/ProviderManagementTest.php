@@ -26,10 +26,8 @@ class ProviderManagementTest extends TestCase
         $this->admin->assignRole($role);
     }
 
-    public function test_supported_provider_can_be_registered_and_activated(): void
+    public function test_provider_registration_starts_disabled_until_runtime_calls_are_configured(): void
     {
-        $this->insertAdapter('test_provider', 'Test Provider', 'api_token', ['competitions', 'seasons']);
-
         $response = $this->actingAs($this->admin)->post(route('admin.providers.store'), [
             'code' => 'test_provider',
             'name' => 'Test Provider',
@@ -47,11 +45,11 @@ class ProviderManagementTest extends TestCase
 
         $provider = DB::table('data_providers')->where('code', 'test_provider')->first();
         $this->assertNotNull($provider);
-        $this->assertTrue((bool) $provider->active);
+        $this->assertFalse((bool) $provider->active);
 
         $this->assertDatabaseHas('data_provider_runtime_configs', [
             'data_provider_id' => $provider->id,
-            'is_enabled' => 1,
+            'is_enabled' => 0,
             'priority' => 30,
             'role' => 'fallback',
             'plan' => 'Basic',
@@ -63,7 +61,7 @@ class ProviderManagementTest extends TestCase
         $this->assertSame('secret-token', Crypt::decryptString($credential->encrypted_value));
     }
 
-    public function test_provider_without_adapter_can_be_registered_from_ui_without_credential(): void
+    public function test_provider_without_runtime_configuration_can_be_registered_from_ui_without_credential(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.providers.store'), [
             'code' => 'thesportsdb',
@@ -88,7 +86,7 @@ class ProviderManagementTest extends TestCase
         $this->assertFalse((bool) $runtime->is_enabled);
 
         $metadata = json_decode($runtime->metadata, true);
-        $this->assertSame('adapter_required', $metadata['onboarding_state']);
+        $this->assertSame('configure_runtime', $metadata['onboarding_state']);
         $this->assertFalse($metadata['credential_required']);
         $this->assertSame(['competitions', 'seasons', 'teams'], $metadata['capabilities']);
 
@@ -119,7 +117,7 @@ class ProviderManagementTest extends TestCase
         ]);
     }
 
-    public function test_provider_management_marks_registered_provider_without_adapter(): void
+    public function test_provider_management_marks_registered_provider_without_runtime_configuration(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
             'code' => 'thesportsdb',
@@ -142,8 +140,7 @@ class ProviderManagementTest extends TestCase
             'retry_sleep_ms' => 500,
             'plan' => 'Free',
             'metadata' => json_encode([
-                'adapter_supported' => false,
-                'onboarding_state' => 'adapter_required',
+                'onboarding_state' => 'configure_runtime',
             ]),
             'created_at' => now(),
             'updated_at' => now(),
@@ -153,20 +150,77 @@ class ProviderManagementTest extends TestCase
             ->get(route('admin.providers.index'))
             ->assertOk()
             ->assertSee('TheSportsDB')
-            ->assertSee('Adapter richiesto')
-            ->assertSee('Installa adapter per attivare');
+            ->assertSee('Da configurare')
+            ->assertSee('Configura runtime')
+            ->assertDontSee('nativo')
+            ->assertDontSee('Installa adapter per attivare');
     }
 
-    public function test_provider_management_offers_installed_adapters_to_configure_from_ui(): void
+    public function test_provider_management_marks_http_configured_provider(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'thesportsdb',
+            'name' => 'TheSportsDB',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => false,
+            'priority' => 30,
+            'role' => 'fallback',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'plan' => 'Free',
+            'metadata' => json_encode(['onboarding_state' => 'configure_runtime']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_http_endpoints')->insert([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'label' => 'Leagues',
+            'method' => 'GET',
+            'endpoint' => 'all_leagues.php',
+            'items_path' => null,
+            'is_enabled' => true,
+            'validation_status' => 'saved_not_tested',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.index'))
+            ->assertOk()
+            ->assertSee('Configurato')
+            ->assertSee('HTTP capability:')
+            ->assertSee('Stato corrente: CONFIGURATO')
+            ->assertSee('Hai configurato via UI:')
+            ->assertSee('Runtime squadre:')
+            ->assertSee('non pronto, manca endpoint teams')
+            ->assertSee('Cosa manca per usarlo?')
+            ->assertDontSee('nativo')
+            ->assertDontSee('Adapter richiesto')
+            ->assertDontSee('Installa adapter per attivare');
+    }
+
+    public function test_provider_management_does_not_offer_code_defined_adapters_in_registration_ui(): void
     {
         $this->actingAs($this->admin)
             ->get(route('admin.providers.index'))
             ->assertOk()
-            ->assertSee('Adapter installato disponibile')
-            ->assertSee('API-Football')
-            ->assertSee('data-installed-adapter', false)
-            ->assertSee('data-code="api_football"', false)
-            ->assertSee('data-credential-key="api_key"', false);
+            ->assertDontSee('Adapter installato disponibile')
+            ->assertDontSee('data-installed-adapter', false)
+            ->assertDontSee('data-code="api_football"', false)
+            ->assertDontSee('data-credential-key="api_key"', false);
     }
 
     public function test_http_adapter_configuration_page_can_be_opened_from_provider_management(): void
@@ -627,7 +681,7 @@ class ProviderManagementTest extends TestCase
         $this->assertStringContainsString('[http_adapter_configuration][info] HTTP adapter configuration page requested.', $log);
     }
 
-    public function test_http_adapter_test_request_uses_provider_credentials_for_installed_adapters(): void
+    public function test_http_adapter_test_request_uses_database_configured_header_credentials(): void
     {
         Http::fake([
             'api.football-data.org/*' => Http::response([
@@ -662,6 +716,39 @@ class ProviderManagementTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        DB::table('data_provider_configurations')->insert([
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'auth_type',
+                'value' => 'header',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'credential_key',
+                'value' => 'token',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'auth_header_name',
+                'value' => 'X-Auth-Token',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
         $this->actingAs($this->admin)
             ->post(route('admin.providers.http-adapter.test', $providerId), [
                 'capability' => 'competitions',
@@ -677,7 +764,7 @@ class ProviderManagementTest extends TestCase
         Http::assertSent(fn ($request): bool => $request->hasHeader('X-Auth-Token', 'secret-football-data-token'));
     }
 
-    public function test_http_adapter_test_request_uses_api_football_credentials(): void
+    public function test_http_adapter_test_request_uses_alternate_database_configured_header_credentials(): void
     {
         Http::fake([
             'v3.football.api-sports.io/*' => Http::response([
@@ -708,6 +795,39 @@ class ProviderManagementTest extends TestCase
             'rotated_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_configurations')->insert([
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'auth_type',
+                'value' => 'header',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'credential_key',
+                'value' => 'api_key',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'auth_header_name',
+                'value' => 'x-apisports-key',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
 
         $this->actingAs($this->admin)
@@ -813,6 +933,47 @@ class ProviderManagementTest extends TestCase
         $this->assertNotNull($endpoint);
         $this->assertSame('competitions/{provider_competition_code}/standings', $endpoint->endpoint);
         $this->assertSame(['season' => '{season_year}'], json_decode($endpoint->query_params, true));
+    }
+
+    public function test_incomplete_http_mapping_keeps_endpoint_enabled_for_lab_usage(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'thesportsdb',
+            'name' => 'TheSportsDB',
+            'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'list',
+                'label' => 'All leagues raw list',
+                'method' => 'GET',
+                'endpoint' => 'all_leagues.php',
+                'items_path' => '',
+                'field_mappings' => "provider_competition_code=idLeague\ncompetition_name=strLeague",
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $endpoint = DB::table('data_provider_http_endpoints')
+            ->where('data_provider_id', $providerId)
+            ->where('capability', 'competitions')
+            ->where('operation', 'list')
+            ->first();
+
+        $this->assertNotNull($endpoint);
+        $this->assertTrue((bool) $endpoint->is_enabled);
+
+        $mapping = DB::table('data_provider_payload_mappings')
+            ->where('data_provider_http_endpoint_id', $endpoint->id)
+            ->first();
+
+        $this->assertNotNull($mapping);
+        $this->assertSame('mapping_incomplete', $mapping->validation_status);
     }
 
     public function test_http_adapter_mapping_blocks_accidental_overwrite_when_configuration_was_not_loaded(): void
@@ -1555,7 +1716,7 @@ class ProviderManagementTest extends TestCase
         ]);
     }
 
-    public function test_provider_management_distinguishes_league_mappings_from_http_mappings(): void
+    public function test_provider_management_shows_only_http_mapping_count(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
             'code' => 'football_data',
@@ -1596,8 +1757,8 @@ class ProviderManagementTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.providers.index'))
             ->assertOk()
-            ->assertSee('Mapping leghe:')
             ->assertSee('HTTP mapping:')
+            ->assertDontSee('Mapping leghe:')
             ->assertDontSee('Mapping: 0');
     }
 
@@ -1664,7 +1825,7 @@ class ProviderManagementTest extends TestCase
             ->assertSee('Elimina configurazione');
     }
 
-    public function test_provider_without_adapter_cannot_be_activated(): void
+    public function test_provider_without_runtime_configuration_cannot_be_activated(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
             'code' => 'pending_provider',
@@ -1685,7 +1846,7 @@ class ProviderManagementTest extends TestCase
             'connect_timeout' => 10,
             'retry_times' => 3,
             'retry_sleep_ms' => 500,
-            'metadata' => json_encode(['adapter_supported' => false]),
+            'metadata' => json_encode(['onboarding_state' => 'configure_runtime']),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -1699,15 +1860,24 @@ class ProviderManagementTest extends TestCase
         ]);
     }
 
-    public function test_credential_rotation_uses_adapter_defined_key(): void
+    public function test_credential_rotation_uses_database_configured_key(): void
     {
-        $this->insertAdapter('test_provider', 'Test Provider', 'api_token', ['competitions']);
-
         $providerId = DB::table('data_providers')->insertGetId([
             'code' => 'test_provider',
             'name' => 'Test Provider',
             'base_url' => 'https://api.test-provider.example',
             'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_configurations')->insert([
+            'data_provider_id' => $providerId,
+            'key' => 'credential_key',
+            'value' => 'api_token',
+            'value_type' => 'string',
+            'environment' => null,
+            'is_secret' => false,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -1737,24 +1907,6 @@ class ProviderManagementTest extends TestCase
         $this->assertNotNull($credential);
         $this->assertSame('api_token', $credential->credential_key);
         $this->assertSame('rotated-secret', Crypt::decryptString($credential->encrypted_value));
-    }
-
-    /**
-     * @param  list<string>  $capabilities
-     */
-    private function insertAdapter(string $code, string $name, ?string $credentialKey, array $capabilities): void
-    {
-        DB::table('data_provider_adapter_definitions')->insert([
-            'code' => $code,
-            'name' => $name,
-            'adapter_class' => null,
-            'config_key' => null,
-            'credential_key' => $credentialKey,
-            'capabilities' => json_encode($capabilities),
-            'is_installed' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
     }
 
     private function copyCompetitionContractFieldsToOperation(string $operation): void

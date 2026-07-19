@@ -3,8 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Data\Providers\TeamDataRequest;
-use App\Services\ApiFootball\ApiFootballClient;
-use App\Services\FootballData\FootballDataClient;
 use App\Services\Providers\TeamProviderRegistry;
 use App\Services\Seasons\LeagueMappingResolver;
 use App\Services\Seasons\SeasonTimelinePlanner;
@@ -17,8 +15,8 @@ final class SyncLeagueSeasons extends Command
 {
     protected $signature = 'season:sync
         {--league-id= : Optional internal league id override}
-        {--competition=SA : football-data.org competition reference}
-        {--api-league-id=135 : API-Football league reference}
+        {--provider-ref=* : Provider reference as provider_code=external_id}
+        {--season= : Current season start year override}
         {--history= : Override SEASON_HISTORY_FALLBACK}
         {--apply : Persist planned changes}
         {--json : Print full JSON report}';
@@ -26,53 +24,26 @@ final class SyncLeagueSeasons extends Command
     protected $description = 'Discover and synchronize the current league season and configured historical fallback.';
 
     public function handle(
-        FootballDataClient $footballData,
-        ApiFootballClient $apiFootball,
         TeamProviderRegistry $registry,
         LeagueMappingResolver $leagueResolver,
         SeasonTimelinePlanner $planner,
     ): int {
-        $competition = strtoupper(trim((string) $this->option('competition')));
-        $apiLeagueId = (int) $this->option('api-league-id');
+        $providerReferences = $this->providerReferences();
         $history = $this->option('history') !== null
             ? max(0, (int) $this->option('history'))
             : (int) config('seasons.history_fallback', 4);
         $apply = (bool) $this->option('apply');
 
         try {
-            $leagueId = $this->resolveLeagueId($leagueResolver, $competition, $apiLeagueId);
-            $discoveries = [];
-
-            try {
-                $discoveries['football_data'] = $footballData->currentSeasonInfo($competition);
-            } catch (Throwable) {
-                $discoveries['football_data'] = null;
-            }
-
-            try {
-                $discoveries['api_football'] = $apiFootball->currentSeasonInfo($apiLeagueId);
-            } catch (Throwable) {
-                $discoveries['api_football'] = null;
-            }
-
-            $availableYears = array_values(array_filter(array_map(
-                fn ($info) => is_array($info) ? ($info['year'] ?? null) : null,
-                $discoveries,
-            ), fn ($year) => is_int($year) && $year > 0));
-
-            if ($availableYears === []) {
-                throw new RuntimeException('No registered provider could discover the current season.');
-            }
-
-            $currentSeason = max($availableYears);
+            $leagueId = $this->resolveLeagueId($leagueResolver, $providerReferences);
+            $currentSeason = $this->option('season') !== null
+                ? (int) $this->option('season')
+                : (int) now()->year;
             $timeline = $planner->build($currentSeason, $history);
             $rows = [];
 
             foreach ($timeline as $season) {
-                $request = new TeamDataRequest($season['season_key'], [
-                    'football_data' => $competition,
-                    'api_football' => $apiLeagueId,
-                ]);
+                $request = new TeamDataRequest($season['season_key'], $providerReferences);
 
                 $providerResults = [];
                 foreach ($registry->all() as $provider) {
@@ -85,7 +56,7 @@ final class SyncLeagueSeasons extends Command
                     ];
                 }
 
-                $dates = $this->resolveDates($footballData, $apiFootball, $competition, $apiLeagueId, $season['season_key']);
+                $dates = ['start_date' => null, 'end_date' => null];
 
                 $existing = DB::table('league_seasons')
                     ->join('seasons', 'seasons.id', '=', 'league_seasons.season_id')
@@ -122,7 +93,7 @@ final class SyncLeagueSeasons extends Command
                 'league_id' => $leagueId,
                 'history_fallback' => $history,
                 'current_season' => $currentSeason,
-                'discoveries' => $discoveries,
+                'provider_references' => $providerReferences,
                 'timeline' => $rows,
             ];
 
@@ -139,7 +110,7 @@ final class SyncLeagueSeasons extends Command
             ));
 
             if ($apply) {
-                $this->apply($leagueId, $rows, $competition, $apiLeagueId);
+                $this->apply($leagueId, $rows, $providerReferences);
                 $this->components->info('League season timeline synchronized.');
             } else {
                 $this->components->info('DRY-RUN complete. No database writes were performed.');
@@ -157,7 +128,10 @@ final class SyncLeagueSeasons extends Command
         }
     }
 
-    private function resolveLeagueId(LeagueMappingResolver $resolver, string $competition, int $apiLeagueId): int
+    /**
+     * @param  array<string, string>  $providerReferences
+     */
+    private function resolveLeagueId(LeagueMappingResolver $resolver, array $providerReferences): int
     {
         $override = (int) $this->option('league-id');
         if ($override > 0) {
@@ -167,39 +141,11 @@ final class SyncLeagueSeasons extends Command
             return $override;
         }
 
-        return $resolver->resolve([
-            'football_data' => $competition,
-            'api_football' => $apiLeagueId,
-        ]);
-    }
-
-    /** @return array{start_date:?string,end_date:?string} */
-    private function resolveDates(
-        FootballDataClient $footballData,
-        ApiFootballClient $apiFootball,
-        string $competition,
-        int $apiLeagueId,
-        int $seasonYear,
-    ): array {
-        $candidates = [];
-
-        try {
-            $candidates[] = $footballData->seasonDates($competition, $seasonYear);
-        } catch (Throwable) {
+        if ($providerReferences === []) {
+            throw new RuntimeException('No provider references configured for this sync.');
         }
 
-        try {
-            $candidates[] = $apiFootball->seasonDates($apiLeagueId, $seasonYear);
-        } catch (Throwable) {
-        }
-
-        foreach ($candidates as $dates) {
-            if (($dates['start_date'] ?? null) !== null || ($dates['end_date'] ?? null) !== null) {
-                return $dates;
-            }
-        }
-
-        return ['start_date' => null, 'end_date' => null];
+        return $resolver->resolve($providerReferences);
     }
 
     private function dateValue(mixed $value): ?string
@@ -208,16 +154,20 @@ final class SyncLeagueSeasons extends Command
     }
 
     /** @param list<array<string,mixed>> $rows */
-    private function apply(int $leagueId, array $rows, string $competition, int $apiLeagueId): void
+    /**
+     * @param  list<array<string,mixed>>  $rows
+     * @param  array<string, string>  $providerReferences
+     */
+    private function apply(int $leagueId, array $rows, array $providerReferences): void
     {
-        DB::transaction(function () use ($leagueId, $rows, $competition, $apiLeagueId): void {
+        DB::transaction(function () use ($leagueId, $rows, $providerReferences): void {
             DB::table('league_seasons')->where('league_id', $leagueId)->update([
                 'is_current' => false,
                 'updated_at' => now(),
             ]);
 
             $providerIds = DB::table('data_providers')
-                ->whereIn('code', ['football_data', 'api_football'])
+                ->whereIn('code', array_keys($providerReferences))
                 ->pluck('id', 'code');
 
             foreach ($rows as $row) {
@@ -261,14 +211,13 @@ final class SyncLeagueSeasons extends Command
                         continue;
                     }
 
-                    $externalId = $provider['provider'] === 'football_data' ? $competition : (string) $apiLeagueId;
                     DB::table('league_season_provider_mappings')->updateOrInsert(
                         [
                             'league_season_id' => $leagueSeasonId,
                             'data_provider_id' => $providerIds[$provider['provider']],
                         ],
                         [
-                            'external_id' => $externalId,
+                            'external_id' => (string) $providerReferences[$provider['provider']],
                             'external_year' => $row['season_key'],
                             'metadata' => json_encode(['teams_count' => $provider['teams_count']], JSON_UNESCAPED_UNICODE),
                             'verified_at' => now(),
@@ -278,5 +227,25 @@ final class SyncLeagueSeasons extends Command
                 }
             }
         });
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function providerReferences(): array
+    {
+        $references = [];
+
+        foreach ((array) $this->option('provider-ref') as $reference) {
+            [$provider, $externalId] = array_pad(explode('=', (string) $reference, 2), 2, '');
+            $provider = trim($provider);
+            $externalId = trim($externalId);
+
+            if ($provider !== '' && $externalId !== '') {
+                $references[$provider] = $externalId;
+            }
+        }
+
+        return $references;
     }
 }
