@@ -68,6 +68,15 @@ body {
 .fo-app-sidebar {
     border-color: var(--fo-border);
     background: color-mix(in srgb, var(--fo-corporate) 96%, transparent);
+    overflow-x: hidden !important;
+}
+
+@media (min-width: 64rem) {
+    .fo-app-sidebar {
+        width: 18rem !important;
+        min-width: 18rem !important;
+        max-width: 18rem !important;
+    }
 }
 
 .fo-mobile-header {
@@ -105,8 +114,17 @@ body {
 }
 
 .fo-scrollbar {
-    scrollbar-color: rgba(123, 44, 255, 0.55) transparent;
-    scrollbar-width: thin;
+    overflow-x: hidden !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.fo-scrollbar::-webkit-scrollbar,
+.fo-app-sidebar::-webkit-scrollbar,
+.fo-app-sidebar *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 .fo-sidebar-item {
@@ -139,4 +157,30 @@ body {
 .fo-sidebar-group [data-flux-sidebar-group-button]:focus-visible {
     color: #dbe4f3 !important;
     background: transparent !important;
+}
+
+.fo-sidebar-section-label {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.75rem 0.35rem;
+    color: #8ea1bf;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.fo-sidebar-section-label::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: rgba(142, 161, 191, 0.22);
+}
+
+/* The internal Flux group rail is redundant once the menu has named sections. */
+.fo-sidebar-admin-group > div,
+.fo-sidebar-admin-group [data-flux-sidebar-group-items] {
+    border-inline-start: 0 !important;
+    border-left: 0 !important;
 }

@@ -1,0 +1,19 @@
+{
+  "id": 2019,
+  "area": {
+    "id": 2114,
+    "name": "Italy",
+    "code": "ITA",
+    "flag": "https://crests.football-data.org/784.svg"
+  },
+  "name": "Serie A",
+  "code": "SA",
+  "type": "LEAGUE",
+  "emblem": "https://crests.football-data.org/SA.png",
+  "currentSeason": {
+    "id": 2358,
+    "startDate": "2026-08-22",
+    "endDate": "2027-05-23",
+    "currentMatchday": 1
+  }
+}

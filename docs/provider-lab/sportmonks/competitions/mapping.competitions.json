@@ -1,0 +1,49 @@
+{
+  "provider": "sportmonks",
+  "capability": "competitions",
+  "operation": "search",
+  "scope": "country_or_league",
+  "adapter_type": "pending",
+  "request": {
+    "method": null,
+    "base_url_source": "data_provider_configurations.base_url",
+    "endpoint": null,
+    "query": {},
+    "auth": {
+      "type": "unknown",
+      "credential_key": "api_token"
+    }
+  },
+  "test_inputs": {},
+  "response": {
+    "items_path": null
+  },
+  "field_mappings": {
+    "provider_competition_code": null,
+    "provider_competition_id": null,
+    "provider_area_id": null,
+    "competition_name": null,
+    "country_name": null,
+    "country_code": null,
+    "competition_type": null,
+    "competition_logo_url": null
+  },
+  "required_internal_fields": [
+    "provider_competition_code",
+    "competition_name",
+    "country_name"
+  ],
+  "validation_status": "pending_documentation",
+  "blocking_questions": [
+    "Quale endpoint SportMonks useremo per la discovery competizioni?",
+    "Quale scope iniziale e' corretto: country, league search o lista completa?",
+    "Quale items_path restituisce la lista competizioni?",
+    "Quali campi payload mappano provider_competition_code, competition_name e country_name?"
+  ],
+  "runtime_status": {
+    "reachable": false,
+    "valid_payload": false,
+    "mapping_complete": false,
+    "ready": false
+  }
+}

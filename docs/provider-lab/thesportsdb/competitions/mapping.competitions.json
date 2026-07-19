@@ -1,0 +1,40 @@
+{
+  "provider": "thesportsdb",
+  "capability": "competitions",
+  "operation": "search",
+  "scope": "country",
+  "request": {
+    "method": "GET",
+    "base_url": "https://www.thesportsdb.com/api/v1/json/3",
+    "endpoint": "search_all_leagues.php",
+    "query": {
+      "c": "{country_name}"
+    },
+    "auth": "none"
+  },
+  "test_inputs": {
+    "country_name": "Italy"
+  },
+  "response": {
+    "items_path": "countries"
+  },
+  "field_mappings": {
+    "provider_competition_code": "idLeague",
+    "competition_name": "strLeague",
+    "country_name": "strCountry",
+    "competition_type": "strSport",
+    "competition_logo_url": "strBadge"
+  },
+  "required_internal_fields": [
+    "provider_competition_code",
+    "competition_name",
+    "country_name"
+  ],
+  "validation_status": "lab_validated",
+  "runtime_status": {
+    "reachable": true,
+    "valid_payload": true,
+    "mapping_complete": true,
+    "ready": true
+  }
+}
