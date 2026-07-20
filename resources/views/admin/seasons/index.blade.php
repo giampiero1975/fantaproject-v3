@@ -41,6 +41,116 @@
             </div>
         </section>
 
+        <x-fo.panel
+            title="Copertura timeline stagioni"
+            description="Visione DB-only: mostra cosa è già scritto in league_seasons e quanti provider attivi coprono ogni stagione."
+            data-season-timeline-coverage
+        >
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <span class="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-200 ring-1 ring-white/10">
+                    {{ $timelineCoverage->coverage_percent }}% date complete
+                </span>
+                <details class="relative">
+                    <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-white/[0.05] text-slate-300 ring-1 ring-white/10 hover:bg-white/[0.09] [&::-webkit-details-marker]:hidden" title="Filtra copertura timeline" aria-label="Filtra copertura timeline stagioni">
+                        <flux:icon name="funnel" class="size-5" />
+                    </summary>
+                    <x-fo.card padding="p-4" class="absolute right-0 z-20 mt-2 bg-slate-100 text-slate-900" style="width: min(34rem, calc(100vw - 2rem));">
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Nazione</span>
+                                <select data-season-coverage-country-filter class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
+                                    <option value="">Tutte le nazioni</option>
+                                    @foreach($timelineCoverage->leagues->whereNotNull('country_name')->unique('country_name')->sortBy('country_name') as $coverageCountry)
+                                        <option value="{{ \Illuminate\Support\Str::lower($coverageCountry->country_name) }}">{{ $coverageCountry->country_name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Competizione</span>
+                                <select data-season-coverage-competition-filter class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
+                                    <option value="">Tutte le competizioni</option>
+                                    @foreach($timelineCoverage->leagues->sortBy('league_name') as $coverageLeague)
+                                        <option value="{{ \Illuminate\Support\Str::lower($coverageLeague->league_name) }}">{{ $coverageLeague->league_name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="space-y-1 sm:col-span-2">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Stato timeline</span>
+                                <select data-season-coverage-status-filter class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-300">
+                                    <option value="">Tutti gli stati</option>
+                                    <option value="complete">Coperta</option>
+                                    <option value="partial">Parziale</option>
+                                    <option value="empty">Assente</option>
+                                </select>
+                            </label>
+                        </div>
+                        <button type="button" data-season-coverage-filter-reset class="mt-3 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Pulisci filtri</button>
+                    </x-fo.card>
+                </details>
+            </div>
+
+            <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <x-fo.stat label="Competizioni" :value="$timelineCoverage->league_count" icon="queue-list" tone="blue" />
+                <x-fo.stat label="Complete" :value="$timelineCoverage->complete_leagues" icon="check-circle" tone="green" />
+                <x-fo.stat label="Parziali" :value="$timelineCoverage->partial_leagues" icon="exclamation-triangle" tone="amber" />
+                <x-fo.stat label="Senza timeline" :value="$timelineCoverage->empty_leagues" icon="minus-circle" tone="purple" />
+                <x-fo.stat
+                    label="Stagioni complete"
+                    :value="$timelineCoverage->complete_dates.' / '.$timelineCoverage->season_count"
+                    :hint="$timelineCoverage->missing_dates > 0 || $timelineCoverage->partial_dates > 0 ? $timelineCoverage->missing_dates.' mancanti · '.$timelineCoverage->partial_dates.' parziali' : null"
+                    icon="calendar-days"
+                    tone="blue"
+                />
+            </div>
+
+            <div class="mt-5 overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="text-slate-500">
+                        <tr>
+                            <th class="pb-3">Nazione</th>
+                            <th class="pb-3">Competizione</th>
+                            <th class="pb-3">Stato timeline</th>
+                            <th class="pb-3">Current</th>
+                            <th class="pb-3">Date</th>
+                            <th class="pb-3">Provider attivi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        @foreach($timelineCoverage->leagues as $coverage)
+                            @php
+                                $statusClass = match ($coverage->status) {
+                                    'complete' => 'bg-emerald-400/15 text-emerald-200 ring-emerald-300/20',
+                                    'partial' => 'bg-amber-400/15 text-amber-200 ring-amber-300/20',
+                                    default => 'bg-slate-700/70 text-slate-300 ring-slate-500/20',
+                                };
+                                $statusLabel = match ($coverage->status) {
+                                    'complete' => 'coperta',
+                                    'partial' => 'parziale',
+                                    default => 'assente',
+                                };
+                            @endphp
+                            <tr
+                                data-season-coverage-row
+                                data-coverage-country="{{ \Illuminate\Support\Str::lower($coverage->country_name ?? '') }}"
+                                data-coverage-competition="{{ \Illuminate\Support\Str::lower($coverage->league_name) }}"
+                                data-coverage-status="{{ $coverage->status }}"
+                            >
+                                <td class="py-3 text-slate-400">{{ $coverage->country_name ?? '—' }}</td>
+                                <td class="py-3 text-white">{{ $coverage->league_name }}</td>
+                                <td class="py-3">
+                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $statusClass }}">{{ $statusLabel }}</span>
+                                </td>
+                                <td class="py-3 text-slate-300">{{ $coverage->current_season_label ?? '—' }}</td>
+                                <td class="py-3 text-slate-300">{{ $coverage->complete_dates }} / {{ $coverage->season_count }}</td>
+                                <td class="py-3 text-slate-300">{{ $coverage->active_provider_mapped }} / {{ $coverage->season_count }}</td>
+                            </tr>
+                        @endforeach
+                        <tr data-season-coverage-empty class="{{ $timelineCoverage->leagues->isEmpty() ? '' : 'hidden' }}"><td colspan="6" class="py-5 text-center text-slate-500">Nessuna copertura timeline per i filtri selezionati.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </x-fo.panel>
+
         <div class="grid gap-6 xl:grid-cols-3">
             <section class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 xl:col-span-2">
                 <h2 class="text-lg font-semibold text-white">Analizza timeline</h2>
@@ -277,6 +387,13 @@
             const leagueEmpty = root.querySelector('[data-season-filter-empty]');
             const registryEmpty = root.querySelector('[data-season-registry-empty]');
             const storageKey = 'fanta-oracle:season-registry-filters';
+            const coverageCountryFilter = root.querySelector('[data-season-coverage-country-filter]');
+            const coverageCompetitionFilter = root.querySelector('[data-season-coverage-competition-filter]');
+            const coverageStatusFilter = root.querySelector('[data-season-coverage-status-filter]');
+            const coverageResetFilter = root.querySelector('[data-season-coverage-filter-reset]');
+            const coverageRows = Array.from(root.querySelectorAll('[data-season-coverage-row]'));
+            const coverageEmpty = root.querySelector('[data-season-coverage-empty]');
+            const coverageStorageKey = 'fanta-oracle:season-coverage-filters';
 
             const readFilters = () => ({
                 country: countryFilter?.value ?? '',
@@ -362,6 +479,66 @@
             });
             restoreFilters();
             applyFilter(false);
+
+            const readCoverageFilters = () => ({
+                country: coverageCountryFilter?.value ?? '',
+                competition: coverageCompetitionFilter?.value ?? '',
+                status: coverageStatusFilter?.value ?? '',
+            });
+
+            const writeCoverageFilters = () => {
+                try {
+                    window.localStorage.setItem(coverageStorageKey, JSON.stringify(readCoverageFilters()));
+                } catch (_) {
+                }
+            };
+
+            const restoreCoverageFilters = () => {
+                try {
+                    const saved = JSON.parse(window.localStorage.getItem(coverageStorageKey) ?? '{}');
+                    if (coverageCountryFilter && typeof saved.country === 'string') coverageCountryFilter.value = saved.country;
+                    if (coverageCompetitionFilter && typeof saved.competition === 'string') coverageCompetitionFilter.value = saved.competition;
+                    if (coverageStatusFilter && typeof saved.status === 'string') coverageStatusFilter.value = saved.status;
+                } catch (_) {
+                }
+            };
+
+            const applyCoverageFilter = (persist = true) => {
+                const country = coverageCountryFilter?.value ?? '';
+                const competition = coverageCompetitionFilter?.value ?? '';
+                const status = coverageStatusFilter?.value ?? '';
+                let visibleRows = 0;
+
+                coverageRows.forEach((row) => {
+                    const show = (country === '' || row.dataset.coverageCountry === country)
+                        && (competition === '' || row.dataset.coverageCompetition === competition)
+                        && (status === '' || row.dataset.coverageStatus === status);
+                    row.classList.toggle('hidden', !show);
+                    if (show) visibleRows++;
+                });
+
+                coverageEmpty?.classList.toggle('hidden', visibleRows !== 0);
+
+                if (persist) {
+                    writeCoverageFilters();
+                }
+            };
+
+            coverageCountryFilter?.addEventListener('change', applyCoverageFilter);
+            coverageCompetitionFilter?.addEventListener('change', applyCoverageFilter);
+            coverageStatusFilter?.addEventListener('change', applyCoverageFilter);
+            coverageResetFilter?.addEventListener('click', () => {
+                if (coverageCountryFilter) coverageCountryFilter.value = '';
+                if (coverageCompetitionFilter) coverageCompetitionFilter.value = '';
+                if (coverageStatusFilter) coverageStatusFilter.value = '';
+                try {
+                    window.localStorage.removeItem(coverageStorageKey);
+                } catch (_) {
+                }
+                applyCoverageFilter();
+            });
+            restoreCoverageFilters();
+            applyCoverageFilter(false);
         })();
     </script>
 </x-app-layout>

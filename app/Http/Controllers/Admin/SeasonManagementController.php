@@ -84,6 +84,7 @@ final class SeasonManagementController extends Controller
             'internalLeagues' => $this->internalLeagues(),
             'mappableProviders' => $this->mappableProviders(),
             'countries' => $countries,
+            'timelineCoverage' => $this->timelineCoverage(),
             'requiredCapabilities' => self::REQUIRED_CAPABILITIES,
             'historyFallback' => (int) config('seasons.history_fallback', 4),
             'lastReport' => session('season_sync_report'),
@@ -135,6 +136,115 @@ final class SeasonManagementController extends Controller
 
             return $provider;
         });
+    }
+
+    private function timelineCoverage(): object
+    {
+        $rows = DB::table('leagues as l')
+            ->leftJoin('countries as c', 'c.id', '=', 'l.country_id')
+            ->leftJoin('league_seasons as ls', 'ls.league_id', '=', 'l.id')
+            ->leftJoin('seasons as s', 's.id', '=', 'ls.season_id')
+            ->leftJoin('league_season_provider_mappings as lspm', 'lspm.league_season_id', '=', 'ls.id')
+            ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'lspm.data_provider_id')
+            ->select([
+                'l.id as league_id',
+                'l.name as league_name',
+                'c.name as country_name',
+                'ls.id as league_season_id',
+                'ls.is_current',
+                'ls.start_date',
+                'ls.end_date',
+                's.season_key',
+                's.label as season_label',
+                DB::raw('COUNT(DISTINCT lspm.id) as provider_count'),
+                DB::raw('SUM(CASE WHEN rc.is_enabled THEN 1 ELSE 0 END) as active_provider_count'),
+            ])
+            ->groupBy([
+                'l.id',
+                'l.name',
+                'c.name',
+                'ls.id',
+                'ls.is_current',
+                'ls.start_date',
+                'ls.end_date',
+                's.season_key',
+                's.label',
+            ])
+            ->orderBy('c.name')
+            ->orderBy('l.name')
+            ->orderByDesc('s.season_key')
+            ->get();
+
+        $leagues = $rows
+            ->groupBy('league_id')
+            ->map(function ($leagueRows): object {
+                $first = $leagueRows->first();
+                $seasons = $leagueRows
+                    ->filter(fn (object $row): bool => $row->league_season_id !== null)
+                    ->map(function (object $row): object {
+                        $hasStartDate = filled($row->start_date);
+                        $hasEndDate = filled($row->end_date);
+                        $activeProviderCount = (int) $row->active_provider_count;
+
+                        return (object) [
+                            'season_key' => $row->season_key,
+                            'label' => $row->season_label,
+                            'is_current' => (bool) $row->is_current,
+                            'start_date' => $row->start_date,
+                            'end_date' => $row->end_date,
+                            'provider_count' => (int) $row->provider_count,
+                            'active_provider_count' => $activeProviderCount,
+                            'has_dates' => $hasStartDate && $hasEndDate,
+                            'has_partial_dates' => $hasStartDate xor $hasEndDate,
+                            'has_active_provider_mapping' => $activeProviderCount > 0,
+                        ];
+                    })
+                    ->values();
+
+                $seasonCount = $seasons->count();
+                $completeDates = $seasons->where('has_dates', true)->count();
+                $partialDates = $seasons->where('has_partial_dates', true)->count();
+                $missingDates = $seasonCount - $completeDates - $partialDates;
+                $activeProviderMapped = $seasons->where('has_active_provider_mapping', true)->count();
+                $currentSeason = $seasons->firstWhere('is_current', true);
+
+                $status = match (true) {
+                    $seasonCount === 0 => 'empty',
+                    $completeDates === $seasonCount && $activeProviderMapped === $seasonCount => 'complete',
+                    default => 'partial',
+                };
+
+                return (object) [
+                    'league_id' => $first->league_id,
+                    'league_name' => $first->league_name,
+                    'country_name' => $first->country_name,
+                    'season_count' => $seasonCount,
+                    'complete_dates' => $completeDates,
+                    'partial_dates' => $partialDates,
+                    'missing_dates' => $missingDates,
+                    'active_provider_mapped' => $activeProviderMapped,
+                    'current_season_label' => $currentSeason?->label,
+                    'status' => $status,
+                    'seasons' => $seasons,
+                ];
+            })
+            ->values();
+
+        $totalSeasons = $leagues->sum('season_count');
+        $completeDates = $leagues->sum('complete_dates');
+
+        return (object) [
+            'leagues' => $leagues,
+            'league_count' => $leagues->count(),
+            'complete_leagues' => $leagues->where('status', 'complete')->count(),
+            'partial_leagues' => $leagues->where('status', 'partial')->count(),
+            'empty_leagues' => $leagues->where('status', 'empty')->count(),
+            'season_count' => $totalSeasons,
+            'complete_dates' => $completeDates,
+            'missing_dates' => $leagues->sum('missing_dates'),
+            'partial_dates' => $leagues->sum('partial_dates'),
+            'coverage_percent' => $totalSeasons > 0 ? (int) round(($completeDates / $totalSeasons) * 100) : 0,
+        ];
     }
 
     /**

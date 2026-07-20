@@ -218,6 +218,27 @@
                         <button class="w-full rounded-lg bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-500">Salva configurazione provider</button>
                     </form>
 
+                    <section class="mt-4 rounded-xl bg-red-50 p-4 text-red-950 ring-1 ring-red-200">
+                        <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                            <div class="max-w-3xl">
+                                <h3 class="text-sm font-semibold">Elimina provider</h3>
+                                <p class="mt-1 text-sm leading-5">
+                                    Rimuove il provider dal database insieme a chiamate HTTP, mapping payload, credenziali, configurazioni runtime e collegamenti alle competizioni/stagioni.
+                                    Il contratto interno dei campi resta disponibile per gli altri provider.
+                                </p>
+                            </div>
+                            <form method="POST" action="{{ route('admin.providers.destroy', $provider->id) }}" class="grid gap-2 sm:min-w-96 sm:grid-cols-[1fr_auto]" data-provider-delete-form data-provider-code="{{ $provider->code }}" onsubmit="return confirm('Eliminare definitivamente {{ $provider->name }}? Questa operazione rimuove anche chiamate, mapping e collegamenti salvati.');">
+                                @csrf
+                                @method('DELETE')
+                                <label class="space-y-1">
+                                    <span class="text-xs font-medium text-red-900">Digita {{ $provider->code }} per confermare</span>
+                                    <input name="confirmation_code" autocomplete="off" placeholder="{{ $provider->code }}" required class="w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-red-200" data-provider-delete-code>
+                                </label>
+                                <button class="self-end rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600" data-provider-delete-button disabled>Elimina provider</button>
+                            </form>
+                        </div>
+                    </section>
+
                     <div class="mt-5 grid gap-5">
                         <section class="rounded-xl bg-white p-4 ring-1 ring-slate-300">
                             <h3 class="text-sm font-semibold text-slate-900">Credenziale in uso</h3>
@@ -296,6 +317,19 @@
             select.addEventListener('change', syncPlan);
             custom.addEventListener('input', syncPlan);
             syncPlan();
+        });
+
+        document.querySelectorAll('[data-provider-delete-form]').forEach((form) => {
+            const expectedCode = form.dataset.providerCode || '';
+            const input = form.querySelector('[data-provider-delete-code]');
+            const button = form.querySelector('[data-provider-delete-button]');
+
+            const syncDeleteButton = () => {
+                button.disabled = input.value.trim() !== expectedCode;
+            };
+
+            input.addEventListener('input', syncDeleteButton);
+            syncDeleteButton();
         });
 
     </script>

@@ -1909,6 +1909,197 @@ class ProviderManagementTest extends TestCase
         $this->assertSame('rotated-secret', Crypt::decryptString($credential->encrypted_value));
     }
 
+    public function test_provider_deletion_requires_exact_confirmation_code(): void
+    {
+        $providerId = $this->createProviderWithRuntimeRelations();
+
+        $response = $this->actingAs($this->admin)->delete(route('admin.providers.destroy', $providerId), [
+            'confirmation_code' => 'wrong_code',
+        ]);
+
+        $response->assertSessionHasErrors('provider_deletion');
+
+        $this->assertDatabaseHas('data_providers', [
+            'id' => $providerId,
+            'code' => 'delete_me',
+        ]);
+        $this->assertDatabaseHas('data_provider_http_endpoints', [
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+        ]);
+    }
+
+    public function test_provider_deletion_removes_runtime_calls_credentials_and_domain_mappings(): void
+    {
+        $providerId = $this->createProviderWithRuntimeRelations();
+
+        $response = $this->actingAs($this->admin)->delete(route('admin.providers.destroy', $providerId), [
+            'confirmation_code' => 'delete_me',
+        ]);
+
+        $response->assertRedirect(route('admin.providers.index'));
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseMissing('data_providers', ['id' => $providerId]);
+        $this->assertDatabaseMissing('data_provider_runtime_configs', ['data_provider_id' => $providerId]);
+        $this->assertDatabaseMissing('data_provider_credentials', ['data_provider_id' => $providerId]);
+        $this->assertDatabaseMissing('data_provider_configurations', ['data_provider_id' => $providerId]);
+        $this->assertDatabaseMissing('data_provider_http_endpoints', ['data_provider_id' => $providerId]);
+        $this->assertDatabaseMissing('league_provider_mappings', ['data_provider_id' => $providerId]);
+        $this->assertDatabaseMissing('league_season_provider_mappings', ['data_provider_id' => $providerId]);
+        $this->assertDatabaseMissing('league_aliases', ['data_provider_id' => $providerId]);
+        $this->assertSame(0, DB::table('data_provider_payload_mappings')->count());
+    }
+
+    private function createProviderWithRuntimeRelations(): int
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'delete_me',
+            'name' => 'Delete Me',
+            'base_url' => 'https://api.delete-me.example',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+            'priority' => 30,
+            'role' => 'fallback',
+            'base_url' => 'https://api.delete-me.example',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_credentials')->insert([
+            'data_provider_id' => $providerId,
+            'environment' => app()->environment(),
+            'credential_key' => 'api_key',
+            'encrypted_value' => Crypt::encryptString('secret'),
+            'is_active' => true,
+            'rotated_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_configurations')->insert([
+            'data_provider_id' => $providerId,
+            'key' => 'base_url',
+            'value' => 'https://api.delete-me.example',
+            'value_type' => 'string',
+            'environment' => null,
+            'is_secret' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'label' => 'Competitions',
+            'method' => 'GET',
+            'endpoint' => 'competitions',
+            'query_params' => json_encode([]),
+            'body_template' => json_encode([]),
+            'items_path' => 'competitions',
+            'is_enabled' => true,
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode(['provider_competition_code' => 'code']),
+            'required_fields' => json_encode(['provider_competition_code']),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $confederationId = DB::table('confederations')->insertGetId([
+            'code' => 'UEFA',
+            'name' => 'UEFA',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $countryId = DB::table('countries')->insertGetId([
+            'confederation_id' => $confederationId,
+            'region' => 'Europe',
+            'name' => 'Italy',
+            'iso2' => 'IT',
+            'iso3' => 'ITA',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $leagueId = DB::table('leagues')->insertGetId([
+            'country_id' => $countryId,
+            'name' => 'Serie A',
+            'slug' => 'italy-serie-a-delete-me',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('league_provider_mappings')->insert([
+            'league_id' => $leagueId,
+            'data_provider_id' => $providerId,
+            'external_id' => 'SA',
+            'external_name' => 'Serie A',
+            'external_country' => 'Italy',
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('league_aliases')->insert([
+            'league_id' => $leagueId,
+            'data_provider_id' => $providerId,
+            'alias' => 'Serie A Provider Alias',
+            'normalized_alias' => 'serie a provider alias',
+            'source' => 'provider',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $seasonId = DB::table('seasons')->insertGetId([
+            'season_key' => 2026,
+            'label' => '2026/27',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $leagueSeasonId = DB::table('league_seasons')->insertGetId([
+            'league_id' => $leagueId,
+            'season_id' => $seasonId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('league_season_provider_mappings')->insert([
+            'league_season_id' => $leagueSeasonId,
+            'data_provider_id' => $providerId,
+            'external_id' => '2026',
+            'external_year' => 2026,
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $providerId;
+    }
+
     private function copyCompetitionContractFieldsToOperation(string $operation): void
     {
         DB::table('data_provider_contract_fields')

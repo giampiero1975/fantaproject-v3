@@ -34,6 +34,7 @@ Route::middleware([
     Route::get('/providers', [ProviderManagementController::class, 'index'])->name('providers.index');
     Route::post('/providers', [ProviderManagementController::class, 'store'])->name('providers.store');
     Route::put('/providers/{provider}', [ProviderManagementController::class, 'update'])->name('providers.update');
+    Route::delete('/providers/{provider}', [ProviderManagementController::class, 'destroy'])->name('providers.destroy');
     Route::patch('/providers/{provider}/toggle', [ProviderManagementController::class, 'toggle'])->name('providers.toggle');
     Route::post('/providers/{provider}/credentials', [ProviderManagementController::class, 'rotateCredential'])->name('providers.credentials.rotate');
     Route::get('/providers/{provider}/http-adapter', [ProviderManagementController::class, 'configureHttpAdapter'])->name('providers.http-adapter.configure');

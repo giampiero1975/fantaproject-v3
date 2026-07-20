@@ -318,6 +318,109 @@ final class ProviderManagementController extends Controller
         return back()->with('status', 'Configurazione provider aggiornata.');
     }
 
+    public function destroy(Request $request, int $provider): RedirectResponse
+    {
+        $this->providerLog('provider_deletion', 'info', 'Provider deletion requested.', [
+            'provider_id' => $provider,
+        ]);
+
+        $catalogProvider = DB::table('data_providers')->where('id', $provider)->first();
+        abort_unless($catalogProvider, 404);
+
+        $confirmationCode = trim((string) $request->input('confirmation_code'));
+
+        if ($confirmationCode === '') {
+            $this->providerLog('provider_deletion', 'warning', 'Provider deletion blocked: confirmation code missing.', [
+                'provider_id' => $provider,
+                'provider_code' => $catalogProvider->code,
+            ]);
+
+            return back()->withErrors([
+                'provider_deletion' => "Per eliminare {$catalogProvider->name} devi prima digitare il codice provider: {$catalogProvider->code}.",
+            ]);
+        }
+
+        if ($confirmationCode !== $catalogProvider->code) {
+            $this->providerLog('provider_deletion', 'warning', 'Provider deletion blocked: confirmation code mismatch.', [
+                'provider_id' => $provider,
+                'provider_code' => $catalogProvider->code,
+                'confirmation_code' => $confirmationCode,
+            ]);
+
+            return back()->withErrors([
+                'provider_deletion' => "Per eliminare {$catalogProvider->name} devi digitare esattamente il codice provider: {$catalogProvider->code}.",
+            ]);
+        }
+
+        $deleted = [
+            'league_season_provider_mappings' => 0,
+            'league_provider_mappings' => 0,
+            'league_aliases' => 0,
+            'data_provider_payload_mappings' => 0,
+            'data_provider_http_endpoints' => 0,
+            'data_provider_credentials' => 0,
+            'data_provider_runtime_configs' => 0,
+            'data_provider_configurations' => 0,
+            'data_providers' => 0,
+        ];
+
+        DB::transaction(function () use ($provider, &$deleted): void {
+            $endpointIds = DB::table('data_provider_http_endpoints')
+                ->where('data_provider_id', $provider)
+                ->pluck('id')
+                ->all();
+
+            $deleted['league_season_provider_mappings'] = DB::table('league_season_provider_mappings')
+                ->where('data_provider_id', $provider)
+                ->delete();
+
+            $deleted['league_provider_mappings'] = DB::table('league_provider_mappings')
+                ->where('data_provider_id', $provider)
+                ->delete();
+
+            $deleted['league_aliases'] = DB::table('league_aliases')
+                ->where('data_provider_id', $provider)
+                ->delete();
+
+            if ($endpointIds !== []) {
+                $deleted['data_provider_payload_mappings'] = DB::table('data_provider_payload_mappings')
+                    ->whereIn('data_provider_http_endpoint_id', $endpointIds)
+                    ->delete();
+            }
+
+            $deleted['data_provider_http_endpoints'] = DB::table('data_provider_http_endpoints')
+                ->where('data_provider_id', $provider)
+                ->delete();
+
+            $deleted['data_provider_credentials'] = DB::table('data_provider_credentials')
+                ->where('data_provider_id', $provider)
+                ->delete();
+
+            $deleted['data_provider_runtime_configs'] = DB::table('data_provider_runtime_configs')
+                ->where('data_provider_id', $provider)
+                ->delete();
+
+            $deleted['data_provider_configurations'] = DB::table('data_provider_configurations')
+                ->where('data_provider_id', $provider)
+                ->delete();
+
+            $deleted['data_providers'] = DB::table('data_providers')
+                ->where('id', $provider)
+                ->delete();
+        });
+
+        $this->providerLog('provider_deletion', 'info', 'Provider deleted with related runtime configuration.', [
+            'provider_id' => $provider,
+            'provider_code' => $catalogProvider->code,
+            'provider_name' => $catalogProvider->name,
+            'deleted' => $deleted,
+        ]);
+
+        return redirect()
+            ->route('admin.providers.index')
+            ->with('status', "Provider {$catalogProvider->name} eliminato con chiamate, mapping runtime, credenziali e collegamenti.");
+    }
+
     public function toggle(int $provider): RedirectResponse
     {
         $this->providerLog('provider_runtime', 'info', 'Provider runtime toggle requested.', [

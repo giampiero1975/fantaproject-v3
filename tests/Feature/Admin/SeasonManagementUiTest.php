@@ -30,8 +30,17 @@ class SeasonManagementUiTest extends TestCase
         $this->assertStringContainsString('data-season-required-capabilities', $view);
         $this->assertStringContainsString('data-season-provider-capabilities', $view);
         $this->assertStringContainsString('data-season-provider-mapping-form', $view);
+        $this->assertStringContainsString('data-season-timeline-coverage', $view);
+        $this->assertStringContainsString('aria-label="Filtra copertura timeline stagioni"', $view);
+        $this->assertStringContainsString('data-season-coverage-country-filter', $view);
+        $this->assertStringContainsString('data-season-coverage-competition-filter', $view);
+        $this->assertStringContainsString('data-season-coverage-status-filter', $view);
+        $this->assertStringContainsString('data-season-coverage-filter-reset', $view);
+        $this->assertStringContainsString('data-season-coverage-row', $view);
+        $this->assertStringContainsString('data-season-coverage-empty', $view);
         $this->assertStringContainsString("route('admin.seasons.provider-mappings.store')", $view);
         $this->assertStringContainsString('Capability richieste da Gestione Stagioni', $view);
+        $this->assertStringContainsString('Copertura timeline stagioni', $view);
         $this->assertStringContainsString('data-country-id="{{ $league->country_id }}"', $view);
         $this->assertStringContainsString('data-competition="{{ \\Illuminate\\Support\\Str::lower($league->name) }}"', $view);
         $this->assertStringContainsString('data-provider="{{ \\Illuminate\\Support\\Str::lower($provider->provider_name) }}"', $view);
@@ -39,8 +48,11 @@ class SeasonManagementUiTest extends TestCase
         $this->assertStringContainsString("countryFilter?.addEventListener('change', applyFilter)", $view);
         $this->assertStringContainsString("mappingFilter?.addEventListener('input', applyFilter)", $view);
         $this->assertStringContainsString("fanta-oracle:season-registry-filters", $view);
+        $this->assertStringContainsString("fanta-oracle:season-coverage-filters", $view);
         $this->assertStringContainsString('window.localStorage.setItem(storageKey', $view);
+        $this->assertStringContainsString('window.localStorage.setItem(coverageStorageKey', $view);
         $this->assertStringContainsString('restoreFilters();', $view);
+        $this->assertStringContainsString('restoreCoverageFilters();', $view);
     }
 
     public function test_season_management_renders_provider_capability_matrix(): void
@@ -112,6 +124,52 @@ class SeasonManagementUiTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        $currentSeasonId = DB::table('seasons')->insertGetId([
+            'season_key' => 2026,
+            'label' => '2026/27',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $previousSeasonId = DB::table('seasons')->insertGetId([
+            'season_key' => 2025,
+            'label' => '2025/26',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $currentLeagueSeasonId = DB::table('league_seasons')->insertGetId([
+            'league_id' => $leagueId,
+            'season_id' => $currentSeasonId,
+            'is_current' => true,
+            'status' => 'active',
+            'start_date' => '2026-08-23',
+            'end_date' => '2027-05-30',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('league_seasons')->insert([
+            'league_id' => $leagueId,
+            'season_id' => $previousSeasonId,
+            'is_current' => false,
+            'status' => 'active',
+            'start_date' => null,
+            'end_date' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('league_season_provider_mappings')->insert([
+            'league_season_id' => $currentLeagueSeasonId,
+            'data_provider_id' => $providerId,
+            'external_id' => '2494',
+            'external_year' => 2026,
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $competitionsEndpointId = $this->insertEndpoint($providerId, 'competitions', true, 'mapping_validated');
         $this->insertMapping($competitionsEndpointId, 'mapping_validated');
 
@@ -121,6 +179,11 @@ class SeasonManagementUiTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.seasons.index'))
             ->assertOk()
+            ->assertSee('Copertura timeline stagioni')
+            ->assertSee('50% date complete')
+            ->assertSee('parziale')
+            ->assertSee('2026/27')
+            ->assertSee('1 / 2')
             ->assertSee('Capability richieste da Gestione Stagioni')
             ->assertSee('competitions')
             ->assertSee('pronta')
