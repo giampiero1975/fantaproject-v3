@@ -43,12 +43,12 @@
 
         <x-fo.panel
             title="Copertura timeline stagioni"
-            description="Visione DB-only: mostra cosa è già scritto in league_seasons e quanti provider attivi coprono ogni stagione."
+            description="Visione DB-only: la copertura dipende dai provider collegati alle stagioni; le date sono opzionali e restano diagnostiche."
             data-season-timeline-coverage
         >
             <div class="flex flex-wrap items-center justify-end gap-2">
                 <span class="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-200 ring-1 ring-white/10">
-                    {{ $timelineCoverage->coverage_percent }}% date complete
+                    {{ $timelineCoverage->coverage_percent }}% stagioni coperte
                 </span>
                 <details class="relative">
                     <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-lg bg-white/[0.05] text-slate-300 ring-1 ring-white/10 hover:bg-white/[0.09] [&::-webkit-details-marker]:hidden" title="Filtra copertura timeline" aria-label="Filtra copertura timeline stagioni">
@@ -80,6 +80,7 @@
                                     <option value="">Tutti gli stati</option>
                                     <option value="complete">Coperta</option>
                                     <option value="partial">Parziale</option>
+                                    <option value="ready">Da generare</option>
                                     <option value="empty">Assente</option>
                                 </select>
                             </label>
@@ -89,15 +90,16 @@
                 </details>
             </div>
 
-            <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <x-fo.stat label="Competizioni" :value="$timelineCoverage->league_count" icon="queue-list" tone="blue" />
                 <x-fo.stat label="Complete" :value="$timelineCoverage->complete_leagues" icon="check-circle" tone="green" />
                 <x-fo.stat label="Parziali" :value="$timelineCoverage->partial_leagues" icon="exclamation-triangle" tone="amber" />
+                <x-fo.stat label="Da generare" :value="$timelineCoverage->ready_leagues" icon="arrow-path" tone="blue" />
                 <x-fo.stat label="Senza timeline" :value="$timelineCoverage->empty_leagues" icon="minus-circle" tone="purple" />
                 <x-fo.stat
-                    label="Stagioni complete"
-                    :value="$timelineCoverage->complete_dates.' / '.$timelineCoverage->season_count"
-                    :hint="$timelineCoverage->missing_dates > 0 || $timelineCoverage->partial_dates > 0 ? $timelineCoverage->missing_dates.' mancanti · '.$timelineCoverage->partial_dates.' parziali' : null"
+                    label="Stagioni coperte"
+                    :value="$timelineCoverage->covered_seasons.' / '.$timelineCoverage->season_count"
+                    :hint="$timelineCoverage->missing_provider_mapped > 0 ? $timelineCoverage->missing_provider_mapped.' senza provider timeline' : null"
                     icon="calendar-days"
                     tone="blue"
                 />
@@ -111,8 +113,9 @@
                             <th class="pb-3">Competizione</th>
                             <th class="pb-3">Stato timeline</th>
                             <th class="pb-3">Current</th>
-                            <th class="pb-3">Date</th>
                             <th class="pb-3">Provider attivi</th>
+                            <th class="pb-3">Stagioni coperte</th>
+                            <th class="pb-3">Mancanti</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/5">
@@ -121,11 +124,13 @@
                                 $statusClass = match ($coverage->status) {
                                     'complete' => 'bg-emerald-400/15 text-emerald-200 ring-emerald-300/20',
                                     'partial' => 'bg-amber-400/15 text-amber-200 ring-amber-300/20',
+                                    'ready' => 'bg-sky-400/15 text-sky-200 ring-sky-300/20',
                                     default => 'bg-slate-700/70 text-slate-300 ring-slate-500/20',
                                 };
                                 $statusLabel = match ($coverage->status) {
                                     'complete' => 'coperta',
                                     'partial' => 'parziale',
+                                    'ready' => 'da generare',
                                     default => 'assente',
                                 };
                             @endphp
@@ -141,11 +146,18 @@
                                     <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $statusClass }}">{{ $statusLabel }}</span>
                                 </td>
                                 <td class="py-3 text-slate-300">{{ $coverage->current_season_label ?? '—' }}</td>
-                                <td class="py-3 text-slate-300">{{ $coverage->complete_dates }} / {{ $coverage->season_count }}</td>
+                                <td class="py-3 text-slate-300">{{ $coverage->ready_season_providers }}</td>
                                 <td class="py-3 text-slate-300">{{ $coverage->active_provider_mapped }} / {{ $coverage->season_count }}</td>
+                                <td class="py-3 text-slate-400">
+                                    @if(empty($coverage->uncovered_season_labels))
+                                        —
+                                    @else
+                                        {{ implode(', ', $coverage->uncovered_season_labels) }}
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
-                        <tr data-season-coverage-empty class="{{ $timelineCoverage->leagues->isEmpty() ? '' : 'hidden' }}"><td colspan="6" class="py-5 text-center text-slate-500">Nessuna copertura timeline per i filtri selezionati.</td></tr>
+                        <tr data-season-coverage-empty class="{{ $timelineCoverage->leagues->isEmpty() ? '' : 'hidden' }}"><td colspan="7" class="py-5 text-center text-slate-500">Nessuna copertura timeline per i filtri selezionati.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -362,7 +374,7 @@
                 @endif
 
                 @if($lastReportData && !empty($lastReportData['timeline']))
-                    <div class="mt-5 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="text-slate-500"><tr><th class="pb-3">Stagione</th><th class="pb-3">Current</th><th class="pb-3">Inizio</th><th class="pb-3">Fine</th><th class="pb-3">Azione</th><th class="pb-3">Provider</th></tr></thead><tbody class="divide-y divide-white/5">@foreach($lastReportData['timeline'] as $row)<tr><td class="py-3 text-white">{{ $row['label'] }}</td><td class="py-3 {{ $row['is_current'] ? 'text-emerald-300' : 'text-slate-400' }}">{{ $row['is_current'] ? 'Sì' : 'No' }}</td><td class="py-3 text-slate-300">{{ $row['start_date'] ?? '—' }}</td><td class="py-3 text-slate-300">{{ $row['end_date'] ?? '—' }}</td><td class="py-3 font-medium text-violet-200">{{ $row['action'] }}</td><td class="py-3 text-slate-300">{{ collect($row['providers'] ?? [])->where('available', true)->count() }}</td></tr>@endforeach</tbody></table></div>
+                    <div class="mt-5 overflow-x-auto"><table class="w-full text-left text-sm"><thead class="text-slate-500"><tr><th class="pb-3">Stagione</th><th class="pb-3">Current</th><th class="pb-3">Inizio</th><th class="pb-3">Fine</th><th class="pb-3">Azione</th><th class="pb-3">Copertura</th><th class="pb-3">Provider</th></tr></thead><tbody class="divide-y divide-white/5">@foreach($lastReportData['timeline'] as $row)@php($candidateProviders = collect($row['providers'] ?? [])->reject(fn ($provider) => ($provider['reason'] ?? null) === 'missing_provider_reference'))@php($availableProviders = $candidateProviders->where('available', true)->count())@php($coverageLabel = $candidateProviders->isEmpty() || $availableProviders === 0 ? 'scoperta' : ($availableProviders === $candidateProviders->count() ? 'coperta' : 'parziale'))@php($coverageClass = $coverageLabel === 'coperta' ? 'bg-emerald-400/15 text-emerald-200 ring-emerald-300/20' : ($coverageLabel === 'parziale' ? 'bg-amber-400/15 text-amber-200 ring-amber-300/20' : 'bg-rose-400/15 text-rose-200 ring-rose-300/20'))<tr><td class="py-3 text-white">{{ $row['label'] }}</td><td class="py-3 {{ $row['is_current'] ? 'text-emerald-300' : 'text-slate-400' }}">{{ $row['is_current'] ? 'Sì' : 'No' }}</td><td class="py-3 text-slate-300">{{ $row['start_date'] ?? '—' }}</td><td class="py-3 text-slate-300">{{ $row['end_date'] ?? '—' }}</td><td class="py-3 font-medium text-violet-200">{{ $row['action'] }}</td><td class="py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $coverageClass }}">{{ $coverageLabel }}</span></td><td class="py-3 text-slate-300">{{ $availableProviders }} / {{ $candidateProviders->count() }}</td></tr>@endforeach</tbody></table></div>
                 @endif
 
                 <details class="mt-5"><summary class="cursor-pointer text-sm text-slate-400">Dettagli tecnici</summary><pre class="mt-3 max-h-[28rem] overflow-auto rounded-xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-slate-300">{{ $lastReport }}</pre></details>

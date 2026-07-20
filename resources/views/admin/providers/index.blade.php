@@ -103,6 +103,7 @@
                             @endif
                             <form method="POST" action="{{ route('admin.providers.toggle', $provider->id) }}" class="mt-3">
                                 @csrf @method('PATCH')
+                                <input type="hidden" name="is_enabled" value="{{ $runtimeReady ? 0 : 1 }}">
                                 <button @disabled(! $hasRuntimeConfiguration) class="rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 {{ $runtimeReady ? 'bg-amber-200 text-amber-950 hover:bg-amber-300' : 'bg-emerald-200 text-emerald-950 hover:bg-emerald-300' }}">{{ ! $hasRuntimeConfiguration ? 'Configura runtime' : ($runtimeReady ? 'Disattiva provider' : 'Riattiva provider') }}</button>
                             </form>
                         </div>
@@ -211,6 +212,11 @@
                                 <label class="space-y-1">
                                     <span class="text-xs text-slate-700">Query param auth</span>
                                     <input name="auth_query_param" value="{{ $provider->auth_query_param }}" placeholder="es. api_key" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                                </label>
+                                <label class="space-y-1 md:col-span-2 xl:col-span-4">
+                                    <span class="text-xs text-slate-700">Header HTTP extra</span>
+                                    <textarea name="http_headers" rows="3" placeholder="Accept-Encoding=gzip" class="w-full rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-900 ring-1 ring-slate-300">{{ $provider->http_headers_text }}</textarea>
+                                    <span class="block text-[11px] text-slate-500">Una coppia key=value per riga. Usalo per header tecnici del provider, non per la credenziale.</span>
                                 </label>
                             </div>
                         </details>

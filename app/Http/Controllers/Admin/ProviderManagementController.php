@@ -88,7 +88,7 @@ final class ProviderManagementController extends Controller
                 $provider->metadata_decoded = json_decode((string) $provider->metadata, true) ?: [];
                 $settings = app(ProviderConfigurationReader::class)->values((int) $provider->id);
 
-                foreach (['base_url', 'priority', 'role', 'timeout', 'connect_timeout', 'retry_times', 'retry_sleep_ms', 'plan', 'auth_type', 'credential_key', 'auth_header_name', 'auth_query_param'] as $key) {
+                foreach (['base_url', 'priority', 'role', 'timeout', 'connect_timeout', 'retry_times', 'retry_sleep_ms', 'plan', 'auth_type', 'credential_key', 'auth_header_name', 'auth_query_param', 'http_headers'] as $key) {
                     if (array_key_exists($key, $settings)) {
                         $provider->{$key} = $settings[$key];
                     }
@@ -98,6 +98,8 @@ final class ProviderManagementController extends Controller
                 $provider->credential_key ??= $provider->metadata_decoded['credential_key'] ?? null;
                 $provider->auth_header_name ??= null;
                 $provider->auth_query_param ??= null;
+                $provider->http_headers ??= [];
+                $provider->http_headers_text = $this->formatKeyValueLines(is_array($provider->http_headers) ? $provider->http_headers : []);
 
                 return $provider;
             });
@@ -128,7 +130,7 @@ final class ProviderManagementController extends Controller
             'credential_key' => ['nullable', 'string', 'max:120', 'required_if:credential_required,1'],
             'credential_value' => ['nullable', 'string', 'max:5000', 'required_if:credential_required,1'],
             'capabilities' => ['nullable', 'array'],
-            'capabilities.*' => ['string', 'in:competitions,seasons,teams,fixtures,standings,players,statistics'],
+            'capabilities.*' => ['string', 'in:countries,competitions,seasons,teams,fixtures,standings,players,statistics'],
         ]);
 
         $credentialKey = $data['credential_required'] ? ($data['credential_key'] ?? null) : null;
@@ -252,7 +254,10 @@ final class ProviderManagementController extends Controller
             'credential_key' => ['nullable', 'string', 'max:120', 'required_unless:auth_type,none'],
             'auth_header_name' => ['nullable', 'string', 'max:120', 'required_if:auth_type,header'],
             'auth_query_param' => ['nullable', 'string', 'max:120', 'required_if:auth_type,query'],
+            'http_headers' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        $httpHeaders = $this->parseKeyValueLines($data['http_headers'] ?? '');
 
         $this->providerLog('provider_configuration', 'debug', 'Provider configuration validated.', [
             'provider_id' => $provider,
@@ -269,9 +274,10 @@ final class ProviderManagementController extends Controller
             'credential_key' => $data['credential_key'] ?? null,
             'auth_header_name' => $data['auth_header_name'] ?? null,
             'auth_query_param' => $data['auth_query_param'] ?? null,
+            'http_header_keys' => array_keys($httpHeaders),
         ]);
 
-        DB::transaction(function () use ($provider, $data): void {
+        DB::transaction(function () use ($provider, $data, $httpHeaders): void {
             DB::table('data_providers')->where('id', $provider)->update([
                 'name' => $data['name'],
                 'base_url' => $data['base_url'],
@@ -307,6 +313,7 @@ final class ProviderManagementController extends Controller
                 'credential_key' => $data['credential_key'] ?? null,
                 'auth_header_name' => $data['auth_header_name'] ?? null,
                 'auth_query_param' => $data['auth_query_param'] ?? null,
+                'http_headers' => $httpHeaders,
             ]);
         });
 
@@ -421,7 +428,7 @@ final class ProviderManagementController extends Controller
             ->with('status', "Provider {$catalogProvider->name} eliminato con chiamate, mapping runtime, credenziali e collegamenti.");
     }
 
-    public function toggle(int $provider): RedirectResponse
+    public function toggle(Request $request, int $provider): RedirectResponse
     {
         $this->providerLog('provider_runtime', 'info', 'Provider runtime toggle requested.', [
             'provider_id' => $provider,
@@ -449,7 +456,11 @@ final class ProviderManagementController extends Controller
         $runtime = DB::table('data_provider_runtime_configs')->where('data_provider_id', $provider)->first();
         abort_unless($runtime, 404);
 
-        $enabled = ! (bool) $runtime->is_enabled;
+        $data = $request->validate([
+            'is_enabled' => ['required', 'boolean'],
+        ]);
+
+        $enabled = (bool) $data['is_enabled'];
 
         DB::transaction(function () use ($provider, $enabled): void {
             DB::table('data_provider_runtime_configs')->where('data_provider_id', $provider)->update([
@@ -629,7 +640,7 @@ final class ProviderManagementController extends Controller
         return view('admin.providers.http-adapter', [
             'provider' => $providerRow,
             'metadata' => $metadata,
-            'capabilities' => ['competitions', 'seasons', 'teams'],
+            'capabilities' => $this->httpAdapterCapabilities(),
             'operations' => $operations,
             'operationDescriptions' => $this->operationDescriptions(),
             'savedEndpoints' => $savedEndpoints,
@@ -656,6 +667,7 @@ final class ProviderManagementController extends Controller
         $testVariables = $this->parseKeyValueLines($data['test_variables'] ?? '');
         $endpoint = $this->renderTemplate($data['endpoint'], $testVariables);
         $url = $this->buildProviderUrl((string) $providerRow->base_url, $endpoint);
+        $bodyTemplate = $this->renderTemplateArray($this->parseJsonBody($data['body_template'] ?? ''), $testVariables);
         $query = array_merge(
             app(ProviderHttpAuthentication::class)->queryParameters((int) $providerRow->id),
             $this->renderTemplateArray($this->parseKeyValueLines($data['query_params'] ?? ''), $testVariables),
@@ -669,6 +681,30 @@ final class ProviderManagementController extends Controller
                     'field_mappings' => 'Campi non presenti nel contratto: '.implode(', ', $unknownFields).'. Aggiungili prima a Campi interni oppure correggi il mapping.',
                 ])
                 ->with('unknown_contract_fields', $unknownFields)
+                ->with('http_adapter_test_input', $data)
+                ->withInput();
+        }
+
+        $unresolvedVariables = $this->unresolvedTemplateVariables([
+            'endpoint' => $endpoint,
+            'query_params' => Arr::except($query, array_keys(app(ProviderHttpAuthentication::class)->queryParameters((int) $providerRow->id))),
+            'body_template' => $bodyTemplate,
+        ]);
+
+        if ($unresolvedVariables !== []) {
+            $this->providerLog('http_adapter_test', 'warning', 'HTTP adapter test blocked: unresolved template variables.', [
+                'provider_id' => $provider,
+                'provider_code' => $providerRow->code,
+                'capability' => $data['capability'],
+                'operation' => $data['operation'],
+                'unresolved_variables' => $unresolvedVariables,
+                'test_variable_keys' => array_keys($testVariables),
+            ]);
+
+            return back()
+                ->withErrors([
+                    'test_variables' => 'Mancano valori test per queste variabili: '.implode(', ', $unresolvedVariables).'. Inseriscili in Valori test variabili, ad esempio provider_country_id=6.',
+                ])
                 ->with('http_adapter_test_input', $data)
                 ->withInput();
         }
@@ -690,7 +726,7 @@ final class ProviderManagementController extends Controller
         try {
             $pendingRequest = $this->httpAdapterRequest($providerRow);
             $response = $data['method'] === 'POST'
-                ? $pendingRequest->post($url, $this->renderTemplateArray($this->parseJsonBody($data['body_template'] ?? ''), $testVariables))
+                ? $pendingRequest->post($url, $bodyTemplate)
                 : $pendingRequest->get($url, $query);
 
             $json = $response->json();
@@ -721,6 +757,22 @@ final class ProviderManagementController extends Controller
                 'raw_preview' => $this->limitPayload($json),
                 'warning' => $warning,
             ];
+
+            if (! $response->successful()) {
+                $warning = 'La chiamata HTTP ha restituito stato '.$response->status().'. Controlla il log http_adapter_test per il dettaglio della risposta.';
+                $result['warning'] = $warning;
+
+                $this->providerLog('http_adapter_test', 'warning', 'HTTP adapter test returned an unsuccessful response.', [
+                    'provider_id' => $provider,
+                    'provider_code' => $providerRow->code,
+                    'capability' => $data['capability'],
+                    'operation' => $data['operation'],
+                    'status' => $response->status(),
+                    'content_type' => $response->header('content-type'),
+                    'body_preview' => Str::limit($response->body(), 1000),
+                    'resolved_query_keys' => array_keys($query),
+                ]);
+            }
 
             $this->providerLog('http_adapter_test', 'info', 'HTTP adapter test completed.', [
                 'provider_id' => $provider,
@@ -979,8 +1031,8 @@ final class ProviderManagementController extends Controller
         ]);
 
         $data = $request->validate([
-            'capability' => ['required', 'in:competitions,seasons,teams'],
-            'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
+            'capability' => ['required', 'in:'.implode(',', $this->httpAdapterCapabilities())],
+            'operation' => ['required', 'in:list,detail,search,by_country,by_competition,by_season,by_team'],
             'field_key' => ['required', 'string', 'max:100', 'regex:/^[a-z][a-z0-9_]*$/'],
             'label' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -1041,8 +1093,8 @@ final class ProviderManagementController extends Controller
         abort_unless($providerRow, 404);
 
         $data = $request->validate([
-            'capability' => ['required', 'in:competitions,seasons,teams'],
-            'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
+            'capability' => ['required', 'in:'.implode(',', $this->httpAdapterCapabilities())],
+            'operation' => ['required', 'in:list,detail,search,by_country,by_competition,by_season,by_team'],
             'label' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:2000'],
             'data_type' => ['required', 'in:string,integer,float,boolean,date,datetime,url,json'],
@@ -1089,8 +1141,8 @@ final class ProviderManagementController extends Controller
         abort_unless($providerRow, 404);
 
         $data = $request->validate([
-            'capability' => ['required', 'in:competitions,seasons,teams'],
-            'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
+            'capability' => ['required', 'in:'.implode(',', $this->httpAdapterCapabilities())],
+            'operation' => ['required', 'in:list,detail,search,by_country,by_competition,by_season,by_team'],
         ]);
 
         $fieldKey = $this->normalizeContractFieldKey($fieldKey);
@@ -1142,8 +1194,8 @@ final class ProviderManagementController extends Controller
     private function validateHttpAdapterInput(Request $request): array
     {
         return $request->validate([
-            'capability' => ['required', 'in:competitions,seasons,teams'],
-            'operation' => ['required', 'in:list,detail,search,by_competition,by_season,by_team'],
+            'capability' => ['required', 'in:'.implode(',', $this->httpAdapterCapabilities())],
+            'operation' => ['required', 'in:list,detail,search,by_country,by_competition,by_season,by_team'],
             'label' => ['nullable', 'string', 'max:150'],
             'method' => ['required', 'in:GET,POST'],
             'endpoint' => ['required', 'string', 'max:250'],
@@ -1216,12 +1268,26 @@ final class ProviderManagementController extends Controller
     /**
      * @return array<string, string>
      */
+    private function httpAdapterCapabilities(): array
+    {
+        return [
+            'countries',
+            'competitions',
+            'seasons',
+            'teams',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
     private function operations(): array
     {
         return [
             'list' => 'Lista / collezione',
             'detail' => 'Dettaglio singolo',
             'search' => 'Ricerca',
+            'by_country' => 'Per nazione',
             'by_competition' => 'Per competizione',
             'by_season' => 'Per stagione',
             'by_team' => 'Per squadra',
@@ -1245,6 +1311,10 @@ final class ProviderManagementController extends Controller
             'search' => [
                 'when' => 'Quando l endpoint cerca record usando parametri liberi o filtri testuali.',
                 'example' => 'search_all_leagues.php?c={country_name} -> competizioni filtrate per paese',
+            ],
+            'by_country' => [
+                'when' => 'Quando la richiesta dipende da una nazione gia mappata.',
+                'example' => 'league/?country_id={provider_country_id} -> competizioni della nazione',
             ],
             'by_competition' => [
                 'when' => 'Quando la richiesta dipende da una competizione gia mappata.',
@@ -1379,16 +1449,16 @@ final class ProviderManagementController extends Controller
         $functionality = preg_replace('/[^a-z0-9_]+/', '_', strtolower($functionality)) ?: 'general';
         $level = preg_replace('/[^a-z]+/', '', strtolower($level)) ?: 'info';
         $directory = storage_path('logs/administration/provider_managment');
-        $path = "{$directory}/provider_management.log";
+        $path = "{$directory}/{$functionality}.log";
 
         File::ensureDirectoryExists($directory);
 
-        if (! request()->attributes->get('provider_management_log_initialized', false)) {
-            if (! $this->shouldPreserveProviderManagementLog()) {
-                File::put($path, '');
-            }
+        $requestAttribute = "provider_management_log_initialized_{$functionality}";
 
-            request()->attributes->set('provider_management_log_initialized', true);
+        if (! request()->attributes->get($requestAttribute, false)) {
+            File::put($path, '');
+
+            request()->attributes->set($requestAttribute, true);
         }
 
         $logger = Log::build([
@@ -1409,19 +1479,6 @@ final class ProviderManagementController extends Controller
         ], $context);
 
         $logger->log($level, "[{$functionality}][{$level}] {$message}", $context);
-    }
-
-    private function shouldPreserveProviderManagementLog(): bool
-    {
-        if (! request()->isMethod('GET')) {
-            return false;
-        }
-
-        return session()->has('http_adapter_test_result')
-            || session()->has('http_adapter_test_input')
-            || session()->has('unknown_contract_fields')
-            || session()->has('errors')
-            || session()->has('status');
     }
 
     private function buildProviderUrl(string $baseUrl, string $endpoint): string
@@ -1459,6 +1516,27 @@ final class ProviderManagementController extends Controller
             ->all();
     }
 
+    /**
+     * @param  array<string, mixed>  $values
+     * @return list<string>
+     */
+    private function unresolvedTemplateVariables(array $values): array
+    {
+        $variables = [];
+
+        array_walk_recursive($values, function (mixed $value) use (&$variables): void {
+            if (! is_string($value)) {
+                return;
+            }
+
+            if (preg_match_all('/\{([A-Za-z0-9_]+)\}/', $value, $matches) > 0) {
+                $variables = array_merge($variables, $matches[1]);
+            }
+        });
+
+        return array_values(array_unique($variables));
+    }
+
     private function httpAdapterRequest(object $provider): \Illuminate\Http\Client\PendingRequest
     {
         $request = Http::timeout(15)->acceptJson();
@@ -1481,6 +1559,16 @@ final class ProviderManagementController extends Controller
             })
             ->filter(fn (string $value, string $key): bool => $key !== '')
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $value
+     */
+    private function formatKeyValueLines(array $value): string
+    {
+        return collect($value)
+            ->map(fn (mixed $item, string $key): string => "{$key}={$item}")
+            ->implode("\n");
     }
 
     /**

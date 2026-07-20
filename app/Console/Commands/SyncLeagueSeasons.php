@@ -50,6 +50,11 @@ final class SyncLeagueSeasons extends Command
             $timeline = $planner->build($currentSeason, $history);
             $rows = [];
             $providers = $registry->all();
+            $providerIds = DB::table('data_providers')
+                ->whereIn('code', array_keys($providerReferences))
+                ->pluck('id', 'code')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
 
             $this->seasonSyncLog('info', 'Runtime context resolved.', [
                 'league_id' => $leagueId,
@@ -92,11 +97,14 @@ final class SyncLeagueSeasons extends Command
                 }
 
                 $availableSeason = collect($providerResults)
+                    ->first(fn (array $provider): bool => (bool) $provider['available']);
+                $availableSeasonWithDates = collect($providerResults)
                     ->first(fn (array $provider): bool => (bool) $provider['available']
-                        && ($provider['start_date'] !== null || $provider['end_date'] !== null));
+                        && $provider['start_date'] !== null
+                        && $provider['end_date'] !== null);
 
                 if ($availableSeason === null) {
-                    $this->seasonSyncLog('warning', 'No provider available for season dates.', [
+                    $this->seasonSyncLog('warning', 'No provider available for season coverage.', [
                         'season_key' => $season['season_key'],
                         'provider_results' => collect($providerResults)
                             ->map(fn (array $provider): array => [
@@ -106,19 +114,19 @@ final class SyncLeagueSeasons extends Command
                             ])
                             ->all(),
                     ]);
+                } elseif ($availableSeasonWithDates === null) {
+                    $this->seasonSyncLog('warning', 'Season covered without dates.', [
+                        'season_key' => $season['season_key'],
+                        'provider' => $availableSeason['provider'],
+                    ]);
                 } else {
                     $this->seasonSyncLog('info', 'Season dates selected from provider.', [
                         'season_key' => $season['season_key'],
-                        'provider' => $availableSeason['provider'],
-                        'start_date' => $availableSeason['start_date'],
-                        'end_date' => $availableSeason['end_date'],
+                        'provider' => $availableSeasonWithDates['provider'],
+                        'start_date' => $availableSeasonWithDates['start_date'],
+                        'end_date' => $availableSeasonWithDates['end_date'],
                     ]);
                 }
-
-                $dates = [
-                    'start_date' => $availableSeason['start_date'] ?? null,
-                    'end_date' => $availableSeason['end_date'] ?? null,
-                ];
 
                 $existing = DB::table('league_seasons')
                     ->join('seasons', 'seasons.id', '=', 'league_seasons.season_id')
@@ -126,6 +134,11 @@ final class SyncLeagueSeasons extends Command
                     ->where('seasons.season_key', $season['season_key'])
                     ->select('league_seasons.id', 'league_seasons.is_current', 'league_seasons.start_date', 'league_seasons.end_date')
                     ->first();
+
+                $dates = [
+                    'start_date' => $availableSeasonWithDates['start_date'] ?? ($existing ? $this->dateValue($existing->start_date) : null),
+                    'end_date' => $availableSeasonWithDates['end_date'] ?? ($existing ? $this->dateValue($existing->end_date) : null),
+                ];
 
                 $desired = [
                     'is_current' => $season['is_current'],
@@ -138,7 +151,14 @@ final class SyncLeagueSeasons extends Command
                     $unchanged = (bool) $existing->is_current === $desired['is_current']
                         && $this->dateValue($existing->start_date) === $desired['start_date']
                         && $this->dateValue($existing->end_date) === $desired['end_date'];
-                    $action = $unchanged ? 'UNCHANGED' : 'UPDATE';
+                    $providerMappingsChanged = $this->providerMappingsChanged(
+                        (int) $existing->id,
+                        $providerResults,
+                        $providerIds,
+                        $providerReferences,
+                        (int) $season['season_key'],
+                    );
+                    $action = $unchanged && ! $providerMappingsChanged ? 'UNCHANGED' : 'UPDATE';
                 }
 
                 $rows[] = [
@@ -173,7 +193,7 @@ final class SyncLeagueSeasons extends Command
                     $row['start_date'] ?? '-',
                     $row['end_date'] ?? '-',
                     $row['action'],
-                    count(array_filter($row['providers'], fn ($provider) => $provider['available'])),
+                    $this->providerCoverageLabel($row['providers']),
                 ],
                 $rows,
             ));
@@ -230,6 +250,83 @@ final class SyncLeagueSeasons extends Command
         return $value === null ? null : substr((string) $value, 0, 10);
     }
 
+    /**
+     * @param  list<array<string,mixed>>  $providers
+     */
+    private function providerCoverageLabel(array $providers): string
+    {
+        $candidateProviders = array_filter(
+            $providers,
+            fn (array $provider): bool => ($provider['reason'] ?? null) !== 'missing_provider_reference',
+        );
+        $available = count(array_filter($candidateProviders, fn (array $provider): bool => (bool) $provider['available']));
+
+        if ($candidateProviders === []) {
+            return '0/0';
+        }
+
+        return $available.'/'.count($candidateProviders);
+    }
+
+    /**
+     * @param  list<array<string,mixed>>  $providerResults
+     * @param  array<string,int>  $providerIds
+     * @param  array<string,string>  $providerReferences
+     */
+    private function providerMappingsChanged(
+        int $leagueSeasonId,
+        array $providerResults,
+        array $providerIds,
+        array $providerReferences,
+        int $seasonKey,
+    ): bool {
+        $existingMappings = DB::table('league_season_provider_mappings')
+            ->where('league_season_id', $leagueSeasonId)
+            ->get()
+            ->keyBy('data_provider_id');
+
+        $candidateProviderIds = array_values($providerIds);
+
+        foreach ($existingMappings as $mapping) {
+            if (! in_array((int) $mapping->data_provider_id, $candidateProviderIds, true)) {
+                return true;
+            }
+        }
+
+        foreach ($providerResults as $provider) {
+            $providerCode = (string) $provider['provider'];
+
+            if (! isset($providerIds[$providerCode])) {
+                continue;
+            }
+
+            $providerId = $providerIds[$providerCode];
+            $existing = $existingMappings->get($providerId);
+
+            if (! (bool) $provider['available']) {
+                if ($existing !== null) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($existing === null) {
+                return true;
+            }
+
+            if ((string) $existing->external_id !== (string) ($providerReferences[$providerCode] ?? '')) {
+                return true;
+            }
+
+            if ((int) $existing->external_year !== $seasonKey) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** @param list<array<string,mixed>> $rows */
     /**
      * @param  list<array<string,mixed>>  $rows
@@ -283,8 +380,21 @@ final class SyncLeagueSeasons extends Command
                     ]);
                 }
 
+                DB::table('league_season_provider_mappings')
+                    ->where('league_season_id', $leagueSeasonId)
+                    ->whereNotIn('data_provider_id', $providerIds->values()->all())
+                    ->delete();
+
                 foreach ($row['providers'] as $provider) {
-                    if (! $provider['available'] || ! isset($providerIds[$provider['provider']])) {
+                    if (! isset($providerIds[$provider['provider']])) {
+                        continue;
+                    }
+
+                    if (! $provider['available']) {
+                        DB::table('league_season_provider_mappings')
+                            ->where('league_season_id', $leagueSeasonId)
+                            ->where('data_provider_id', $providerIds[$provider['provider']])
+                            ->delete();
                         continue;
                     }
 

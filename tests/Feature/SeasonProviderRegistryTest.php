@@ -202,6 +202,89 @@ final class SeasonProviderRegistryTest extends TestCase
         $this->assertStringContainsString('[season_sync][INFO] Provider season result.', File::get($logPath));
     }
 
+    public function test_season_sync_updates_existing_row_when_provider_mapping_is_missing(): void
+    {
+        Http::fake([
+            'api.football-data.org/*' => Http::response([
+                'season' => [
+                    'id' => 2400,
+                ],
+                'standings' => [],
+            ]),
+        ]);
+
+        $confederationId = DB::table('confederations')->insertGetId([
+            'code' => 'UEFA',
+            'name' => 'UEFA',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $countryId = DB::table('countries')->insertGetId([
+            'confederation_id' => $confederationId,
+            'region' => 'Europe',
+            'name' => 'Italy',
+            'iso2' => 'IT',
+            'iso3' => 'ITA',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $leagueId = DB::table('leagues')->insertGetId([
+            'country_id' => $countryId,
+            'name' => 'Serie A',
+            'slug' => 'serie-a',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $seasonId = DB::table('seasons')->insertGetId([
+            'season_key' => 2022,
+            'label' => '2022/23',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('league_seasons')->insert([
+            'league_id' => $leagueId,
+            'season_id' => $seasonId,
+            'is_current' => true,
+            'status' => 'active',
+            'start_date' => null,
+            'end_date' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $providerId = $this->insertFootballDataSeasonProvider();
+
+        DB::table('league_provider_mappings')->insert([
+            'league_id' => $leagueId,
+            'data_provider_id' => $providerId,
+            'external_id' => 'SA',
+            'external_name' => 'Serie A',
+            'external_country' => 'Italy',
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->artisan('season:sync', [
+            '--league-id' => $leagueId,
+            '--provider-ref' => ['football_data=SA'],
+            '--season' => 2022,
+            '--history' => 0,
+        ])
+            ->expectsTable(
+                ['Season', 'Current', 'Start', 'End', 'Action', 'Providers'],
+                [['2022/23', 'YES', '-', '-', 'UPDATE', '1/1']],
+            )
+            ->assertExitCode(0);
+    }
+
     public function test_season_provider_does_not_call_http_with_unresolved_endpoint_variables(): void
     {
         Http::fake();
@@ -303,6 +386,150 @@ final class SeasonProviderRegistryTest extends TestCase
         $this->assertSame('2023-06-04', $result->season?->endDate);
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://api.example.test/season?league=SA&s=2022-2023');
+    }
+
+    public function test_season_provider_selects_matching_year_from_collection_payload(): void
+    {
+        Http::fake([
+            'api.soccerdataapi.test/*' => Http::response([
+                'count' => 5,
+                'results' => [
+                    ['season' => ['year' => '2026-2027', 'is_active' => true]],
+                    ['season' => ['year' => '2025-2026', 'is_active' => false]],
+                    ['season' => ['year' => '2024-2025', 'is_active' => false]],
+                    ['season' => ['year' => '2023-2024', 'is_active' => false]],
+                    ['season' => ['year' => '2022-2023', 'is_active' => false]],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'soccerdataapi',
+            'name' => 'SoccerDataAPI',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+            'priority' => 30,
+            'role' => 'fallback',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 0,
+            'retry_sleep_ms' => 0,
+            'plan' => 'Free',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'seasons',
+            'operation' => 'by_competition',
+            'label' => 'Stagioni per competizione',
+            'method' => 'GET',
+            'endpoint' => 'season/',
+            'query_params' => json_encode(['league_id' => '{provider_league_id}']),
+            'items_path' => 'results',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'season_id' => 'season.year',
+                'season_year' => 'season.year',
+            ]),
+            'required_fields' => json_encode(['season_id']),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $provider = app(SeasonProviderRegistry::class)->all()[0];
+        $result = $provider->fetchSeason(new SeasonDataRequest(2022, ['soccerdataapi' => '253']));
+
+        $this->assertTrue($result->available);
+        $this->assertSame('2022-2023', $result->season?->externalId);
+
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://api.soccerdataapi.test/season/?league_id=253');
+    }
+
+    public function test_season_provider_does_not_fallback_to_wrong_year_from_collection_payload(): void
+    {
+        Http::fake([
+            'api.soccerdataapi.test/*' => Http::response([
+                'results' => [
+                    ['season' => ['year' => '2025-2026', 'is_active' => true]],
+                    ['season' => ['year' => '2024-2025', 'is_active' => false]],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'soccerdataapi',
+            'name' => 'SoccerDataAPI',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+            'priority' => 30,
+            'role' => 'fallback',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 0,
+            'retry_sleep_ms' => 0,
+            'plan' => 'Free',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'seasons',
+            'operation' => 'by_competition',
+            'label' => 'Stagioni per competizione',
+            'method' => 'GET',
+            'endpoint' => 'season/',
+            'query_params' => json_encode(['league_id' => '{provider_league_id}']),
+            'items_path' => 'results',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_payload_mappings')->insert([
+            'data_provider_http_endpoint_id' => $endpointId,
+            'field_mappings' => json_encode([
+                'season_id' => 'season.year',
+                'season_label' => 'season.year',
+            ]),
+            'required_fields' => json_encode(['season_id']),
+            'validation_status' => 'mapping_validated',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $provider = app(SeasonProviderRegistry::class)->all()[0];
+        $result = $provider->fetchSeason(new SeasonDataRequest(2026, ['soccerdataapi' => '254']));
+
+        $this->assertFalse($result->available);
+        $this->assertSame('requested_season_not_found', $result->reason);
     }
 
     public function test_season_registry_ignores_incomplete_payload_mappings(): void

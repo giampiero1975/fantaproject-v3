@@ -28,18 +28,21 @@ final class ProviderHttpAuthentication
     public function headers(int $providerId): array
     {
         $settings = $this->configurations->values($providerId);
+        $headers = $this->staticHeaders($settings);
 
         if (($settings['auth_type'] ?? 'none') !== 'header') {
-            return [];
+            return $headers;
         }
 
         $header = trim((string) ($settings['auth_header_name'] ?? ''));
         $credentialKey = trim((string) ($settings['credential_key'] ?? ''));
         $credential = $this->credential($providerId, $credentialKey);
 
-        return $header !== '' && $credential !== null
-            ? [$header => $credential]
-            : [];
+        if ($header !== '' && $credential !== null) {
+            $headers[$header] = $credential;
+        }
+
+        return $headers;
     }
 
     /**
@@ -86,5 +89,29 @@ final class ProviderHttpAuthentication
         }
 
         return $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array<string, string>
+     */
+    private function staticHeaders(array $settings): array
+    {
+        $headers = $settings['http_headers'] ?? [];
+
+        if (! is_array($headers)) {
+            return [];
+        }
+
+        return collect($headers)
+            ->mapWithKeys(function (mixed $value, string $key): array {
+                $key = trim($key);
+                $value = trim((string) $value);
+
+                return $key !== '' && $value !== ''
+                    ? [$key => $value]
+                    : [];
+            })
+            ->all();
     }
 }

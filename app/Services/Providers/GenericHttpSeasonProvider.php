@@ -50,6 +50,9 @@ final class GenericHttpSeasonProvider
         ];
 
         try {
+            $requestIsScopedBySeason = $this->hasSeasonTemplate($this->endpoint['endpoint'] ?? '')
+                || $this->hasSeasonTemplate($this->endpoint['query_params'] ?? [])
+                || $this->hasSeasonTemplate($this->endpoint['body_template'] ?? []);
             $endpoint = $this->render((string) $this->endpoint['endpoint'], $variables);
             if ($this->hasUnresolvedPlaceholders($endpoint)) {
                 return ProviderSeasonResult::unavailable($this->key(), 'unresolved_endpoint_template_variables');
@@ -80,6 +83,8 @@ final class GenericHttpSeasonProvider
                 return ProviderSeasonResult::unavailable($this->key(), 'empty_payload');
             }
 
+            $availableSeasons = [];
+
             foreach ($items as $item) {
                 if (! is_array($item)) {
                     continue;
@@ -89,11 +94,23 @@ final class GenericHttpSeasonProvider
                 $season = $this->canonicalSeason($mapped);
 
                 if ($season->externalId !== null || $season->startDate !== null || $season->endDate !== null || $season->metadata !== []) {
+                    $availableSeasons[] = $season;
+                }
+            }
+
+            foreach ($availableSeasons as $season) {
+                if ($this->matchesRequestedSeason($season, $request)) {
                     return ProviderSeasonResult::available($this->key(), $season);
                 }
             }
 
-            return ProviderSeasonResult::unavailable($this->key(), 'mapped_payload_missing_season_fields');
+            if ($requestIsScopedBySeason && count($availableSeasons) === 1) {
+                return ProviderSeasonResult::available($this->key(), $availableSeasons[0]);
+            }
+
+            return $availableSeasons !== []
+                ? ProviderSeasonResult::unavailable($this->key(), 'requested_season_not_found')
+                : ProviderSeasonResult::unavailable($this->key(), 'mapped_payload_missing_season_fields');
         } catch (RequestException $e) {
             $status = $e->response->status();
             if (in_array($status, [401, 403], true)) {
@@ -167,6 +184,16 @@ final class GenericHttpSeasonProvider
         return is_string($value) && preg_match('/\{[A-Za-z0-9_]+\}/', $value) === 1;
     }
 
+    private function hasSeasonTemplate(mixed $value): bool
+    {
+        if (is_array($value)) {
+            return collect($value)->contains(fn (mixed $item): bool => $this->hasSeasonTemplate($item));
+        }
+
+        return is_string($value)
+            && (str_contains($value, '{season_year}') || str_contains($value, '{season_label}'));
+    }
+
     /**
      * @param  array<string, mixed>  $item
      */
@@ -199,6 +226,35 @@ final class GenericHttpSeasonProvider
         return preg_match('/^\d{4}-\d{2}-\d{2}/', $value) === 1
             ? substr($value, 0, 10)
             : null;
+    }
+
+    private function matchesRequestedSeason(CanonicalSeasonData $season, SeasonDataRequest $request): bool
+    {
+        $seasonYear = (string) $request->seasonYear;
+        $seasonLabel = $this->seasonLabel($request->seasonYear);
+
+        $candidates = [
+            $season->externalId,
+            $season->metadata['season_id'] ?? null,
+            $season->metadata['provider_season_id'] ?? null,
+            $season->metadata['season_year'] ?? null,
+            $season->metadata['season_label'] ?? null,
+            $season->metadata['year'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $candidate = trim((string) $candidate);
+
+            if ($candidate === '') {
+                continue;
+            }
+
+            if ($candidate === $seasonYear || $candidate === $seasonLabel || str_starts_with($candidate, "{$seasonYear}-") || str_starts_with($candidate, "{$seasonYear}/")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function seasonLabel(int $seasonYear): string

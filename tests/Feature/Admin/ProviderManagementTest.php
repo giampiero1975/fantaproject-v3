@@ -311,7 +311,7 @@ class ProviderManagementTest extends TestCase
         File::deleteDirectory(storage_path('logs/administration/provider_managment'));
         File::ensureDirectoryExists(storage_path('logs/administration/provider_managment'));
 
-        $logPath = storage_path('logs/administration/provider_managment/provider_management.log');
+        $logPath = storage_path('logs/administration/provider_managment/http_adapter_configuration.log');
         File::put($logPath, 'old log line that must be replaced');
 
         $providerId = DB::table('data_providers')->insertGetId([
@@ -594,6 +594,41 @@ class ProviderManagementTest extends TestCase
             && str_contains($request->url(), 'season=2024'));
     }
 
+    public function test_http_adapter_test_blocks_unresolved_template_variables_before_request(): void
+    {
+        File::deleteDirectory(storage_path('logs/administration/provider_managment'));
+        Http::fake();
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'soccerdataapi',
+            'name' => 'SoccerDataAPI',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->copyCompetitionContractFieldsToOperation('by_country');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'by_country',
+                'method' => 'GET',
+                'endpoint' => 'league/',
+                'query_params' => 'country_id={provider_country_id}',
+                'items_path' => 'results',
+                'field_mappings' => "provider_competition_id=id\ncompetition_name=name",
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('test_variables');
+
+        Http::assertNothingSent();
+
+        $log = File::get(storage_path('logs/administration/provider_managment/http_adapter_test.log'));
+        $this->assertStringContainsString('HTTP adapter test blocked: unresolved template variables.', $log);
+        $this->assertStringContainsString('provider_country_id', $log);
+    }
+
     public function test_http_adapter_test_warns_when_successful_response_has_no_mappable_payload(): void
     {
         File::deleteDirectory(storage_path('logs/administration/provider_managment'));
@@ -631,7 +666,7 @@ class ProviderManagementTest extends TestCase
         $this->assertSame(0, $result['items_count']);
         $this->assertSame('Risposta HTTP 200, ma il corpo non e JSON valido o risulta vuoto.', $result['warning']);
 
-        $log = File::get(storage_path('logs/administration/provider_managment/provider_management.log'));
+        $log = File::get(storage_path('logs/administration/provider_managment/http_adapter_test.log'));
         $this->assertStringContainsString('[http_adapter_test][warning]', $log);
         $this->assertStringContainsString('HTTP adapter test returned no mappable payload.', $log);
     }
@@ -676,9 +711,11 @@ class ProviderManagementTest extends TestCase
         $this->get(route('admin.providers.http-adapter.configure', $providerId))
             ->assertOk();
 
-        $log = File::get(storage_path('logs/administration/provider_managment/provider_management.log'));
-        $this->assertStringContainsString('[http_adapter_test][info] HTTP adapter test requested.', $log);
-        $this->assertStringContainsString('[http_adapter_configuration][info] HTTP adapter configuration page requested.', $log);
+        $testLog = File::get(storage_path('logs/administration/provider_managment/http_adapter_test.log'));
+        $configurationLog = File::get(storage_path('logs/administration/provider_managment/http_adapter_configuration.log'));
+
+        $this->assertStringContainsString('[http_adapter_test][info] HTTP adapter test requested.', $testLog);
+        $this->assertStringContainsString('[http_adapter_configuration][info] HTTP adapter configuration page requested.', $configurationLog);
     }
 
     public function test_http_adapter_test_request_uses_database_configured_header_credentials(): void
@@ -843,6 +880,89 @@ class ProviderManagementTest extends TestCase
             ->assertRedirect();
 
         Http::assertSent(fn ($request): bool => $request->hasHeader('x-apisports-key', 'secret-api-football-key'));
+    }
+
+    public function test_provider_configuration_saves_extra_http_headers(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'soccerdataapi',
+            'name' => 'SoccerDataAPI',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.providers.update', $providerId), [
+                'name' => 'SoccerDataAPI',
+                'base_url' => 'https://api.soccerdataapi.test',
+                'role' => 'fallback',
+                'priority' => 30,
+                'plan' => 'Free',
+                'timeout' => 30,
+                'connect_timeout' => 10,
+                'retry_times' => 3,
+                'retry_sleep_ms' => 500,
+                'auth_type' => 'query',
+                'credential_key' => 'auth_token',
+                'auth_header_name' => null,
+                'auth_query_param' => 'auth_token',
+                'http_headers' => 'Accept-Encoding=gzip',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('data_provider_configurations', [
+            'data_provider_id' => $providerId,
+            'key' => 'http_headers',
+            'value' => '{"Accept-Encoding":"gzip"}',
+            'value_type' => 'json',
+        ]);
+    }
+
+    public function test_http_adapter_test_request_uses_database_configured_extra_headers(): void
+    {
+        Http::fake([
+            'api.soccerdataapi.test/*' => Http::response([
+                'results' => [
+                    ['id' => 112, 'name' => 'italy'],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'soccerdataapi',
+            'name' => 'SoccerDataAPI',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_configurations')->insert([
+            'data_provider_id' => $providerId,
+            'key' => 'http_headers',
+            'value' => '{"Accept-Encoding":"gzip"}',
+            'value_type' => 'json',
+            'environment' => null,
+            'is_secret' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'list',
+                'method' => 'GET',
+                'endpoint' => 'country/',
+                'query_params' => '',
+                'items_path' => 'results',
+                'field_mappings' => "provider_competition_id=id\ncountry_name=name",
+            ])
+            ->assertRedirect();
+
+        Http::assertSent(fn ($request): bool => $request->hasHeader('Accept-Encoding', 'gzip'));
     }
 
     public function test_http_adapter_mapping_can_be_saved_to_runtime_tables(): void
@@ -1502,6 +1622,89 @@ class ProviderManagementTest extends TestCase
             ->count());
     }
 
+    public function test_http_adapter_keeps_countries_and_competitions_list_configurations_separate(): void
+    {
+        DB::table('data_provider_contract_fields')->insert([
+            [
+                'capability' => 'countries',
+                'operation' => 'list',
+                'field_key' => 'provider_country_id',
+                'label' => 'ID nazione provider',
+                'description' => 'Identificatore numerico della nazione restituito dal provider.',
+                'data_type' => 'integer',
+                'is_required' => true,
+                'sort_order' => 10,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'capability' => 'countries',
+                'operation' => 'list',
+                'field_key' => 'country_name',
+                'label' => 'Nome nazione',
+                'description' => 'Nome della nazione restituito dal provider.',
+                'data_type' => 'string',
+                'is_required' => true,
+                'sort_order' => 20,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'soccerdataapi',
+            'name' => 'SoccerDataAPI',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'active' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), [
+                'capability' => 'countries',
+                'operation' => 'list',
+                'label' => 'Nazioni',
+                'method' => 'GET',
+                'endpoint' => 'country/',
+                'items_path' => 'results',
+                'field_mappings' => "provider_country_id=id\ncountry_name=name",
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.save', $providerId), [
+                'capability' => 'competitions',
+                'operation' => 'list',
+                'label' => 'Competizioni',
+                'method' => 'GET',
+                'endpoint' => 'league/',
+                'query_params' => 'country_id={provider_country_id}',
+                'test_variables' => 'provider_country_id=112',
+                'items_path' => 'results',
+                'field_mappings' => "provider_competition_id=id\nprovider_area_id=country.id\ncountry_name=country.name\ncompetition_name=name\ncompetition_type=is_cup",
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('data_provider_http_endpoints', [
+            'data_provider_id' => $providerId,
+            'capability' => 'countries',
+            'operation' => 'list',
+            'label' => 'Nazioni',
+            'endpoint' => 'country/',
+        ]);
+
+        $this->assertDatabaseHas('data_provider_http_endpoints', [
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'label' => 'Competizioni',
+            'endpoint' => 'league/',
+        ]);
+    }
+
     public function test_http_adapter_page_starts_with_empty_form_when_saved_mapping_exists(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
@@ -1851,12 +2054,124 @@ class ProviderManagementTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $response = $this->actingAs($this->admin)->patch(route('admin.providers.toggle', $providerId));
+        $response = $this->actingAs($this->admin)->patch(route('admin.providers.toggle', $providerId), [
+            'is_enabled' => 1,
+        ]);
 
         $response->assertSessionHasErrors('provider');
         $this->assertDatabaseHas('data_provider_runtime_configs', [
             'data_provider_id' => $providerId,
             'is_enabled' => 0,
+        ]);
+    }
+
+    public function test_provider_runtime_activation_is_idempotent(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'soccerdataapi',
+            'name' => 'SoccerDataAPI',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+            'priority' => 30,
+            'role' => 'fallback',
+            'base_url' => 'https://api.soccerdataapi.test',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'metadata' => json_encode(['onboarding_state' => 'configured']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_http_endpoints')->insert([
+            'data_provider_id' => $providerId,
+            'capability' => 'seasons',
+            'operation' => 'by_competition',
+            'label' => 'Stagioni',
+            'method' => 'GET',
+            'endpoint' => 'season/',
+            'items_path' => 'results',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->patch(route('admin.providers.toggle', $providerId), ['is_enabled' => 1])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Provider attivato.');
+
+        $this->assertDatabaseHas('data_providers', [
+            'id' => $providerId,
+            'active' => true,
+        ]);
+        $this->assertDatabaseHas('data_provider_runtime_configs', [
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+        ]);
+    }
+
+    public function test_provider_runtime_deactivation_is_explicit(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'temporary_provider',
+            'name' => 'Temporary Provider',
+            'base_url' => 'https://api.temporary-provider.example',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+            'priority' => 30,
+            'role' => 'fallback',
+            'base_url' => 'https://api.temporary-provider.example',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 3,
+            'retry_sleep_ms' => 500,
+            'metadata' => json_encode(['onboarding_state' => 'configured']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_http_endpoints')->insert([
+            'data_provider_id' => $providerId,
+            'capability' => 'seasons',
+            'operation' => 'by_competition',
+            'label' => 'Stagioni',
+            'method' => 'GET',
+            'endpoint' => 'season/',
+            'items_path' => 'results',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->patch(route('admin.providers.toggle', $providerId), ['is_enabled' => 0])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Provider disattivato. Mapping e storico sono stati conservati.');
+
+        $this->assertDatabaseHas('data_providers', [
+            'id' => $providerId,
+            'active' => false,
+        ]);
+        $this->assertDatabaseHas('data_provider_runtime_configs', [
+            'data_provider_id' => $providerId,
+            'is_enabled' => false,
         ]);
     }
 

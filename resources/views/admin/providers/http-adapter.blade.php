@@ -32,7 +32,7 @@
         <section class="rounded-2xl bg-slate-100 p-5 text-slate-900 shadow-lg shadow-black/10">
             <div class="rounded-xl bg-blue-50 p-4 text-sm text-blue-950 ring-1 ring-blue-200">
                 <h2 class="font-semibold">Ordine guidato</h2>
-                <p class="mt-2 leading-5">Parti da <strong>competitions</strong>. Solo dopo aver collegato la competizione esterna alla lega interna ha senso configurare seasons e teams.</p>
+                <p class="mt-2 leading-5">Se il provider espone prima le nazioni, parti da <strong>countries</strong>. Poi passa a <strong>competitions</strong>; solo dopo aver collegato la competizione esterna alla lega interna ha senso configurare seasons e teams.</p>
             </div>
 
             <section class="mt-5 rounded-xl bg-white p-4 ring-1 ring-slate-300">

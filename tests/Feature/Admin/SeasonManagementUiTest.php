@@ -180,7 +180,7 @@ class SeasonManagementUiTest extends TestCase
             ->get(route('admin.seasons.index'))
             ->assertOk()
             ->assertSee('Copertura timeline stagioni')
-            ->assertSee('50% date complete')
+            ->assertSee('50% stagioni coperte')
             ->assertSee('parziale')
             ->assertSee('2026/27')
             ->assertSee('1 / 2')
