@@ -32,7 +32,8 @@
         <section class="rounded-2xl bg-slate-100 p-5 text-slate-900 shadow-lg shadow-black/10">
             <div class="rounded-xl bg-blue-50 p-4 text-sm text-blue-950 ring-1 ring-blue-200">
                 <h2 class="font-semibold">Ordine guidato</h2>
-                <p class="mt-2 leading-5">Se il provider espone prima le nazioni, parti da <strong>countries</strong>. Poi passa a <strong>competitions</strong>; solo dopo aver collegato la competizione esterna alla lega interna ha senso configurare seasons e teams.</p>
+                <p class="mt-2 leading-5">Se il provider espone prima le nazioni, parti da <strong>countries</strong>. Poi passa a <strong>competitions</strong>; solo dopo aver collegato la competizione esterna alla lega interna ha senso configurare <strong>seasons</strong>, <strong>teams</strong> e <strong>standings</strong>.</p>
+                <p class="mt-2 leading-5"><strong>Nomenclatura capability:</strong> usiamo nomi inglesi plurali: countries, competitions, seasons, teams, standings.</p>
             </div>
 
             <section class="mt-5 rounded-xl bg-white p-4 ring-1 ring-slate-300">
@@ -59,6 +60,7 @@
                             <div class="min-w-0">
                                 <div class="break-all font-mono text-slate-800">{{ $endpoint->method }} {{ $endpoint->endpoint }}</div>
                                 <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-slate-600">
+                                    <span>Auth: <code>{{ $endpoint->auth_mode ?? 'default' }}</code></span>
                                     <span>Query: <code>{{ ! empty($endpoint->query_params_decoded) ? http_build_query($endpoint->query_params_decoded) : 'nessuna' }}</code></span>
                                     <span>Items: <code>{{ $endpoint->items_path ?: 'root object' }}</code></span>
                                     <span>Campi: {{ count($endpoint->field_mappings_decoded) }}</span>
@@ -139,6 +141,15 @@
                         <option value="GET" @selected(($formInput['method'] ?? 'GET') === 'GET')>GET</option>
                         <option value="POST" @selected(($formInput['method'] ?? 'GET') === 'POST')>POST</option>
                     </select>
+                </label>
+
+                <label class="space-y-1">
+                    <span class="text-xs font-medium text-slate-700">Autenticazione</span>
+                    <select name="auth_mode" class="w-full rounded-lg bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300">
+                        <option value="default" @selected(($formInput['auth_mode'] ?? 'default') === 'default')>Default provider</option>
+                        <option value="none" @selected(($formInput['auth_mode'] ?? 'default') === 'none')>Nessuna autenticazione</option>
+                    </select>
+                    <span class="block text-[11px] text-slate-500">Usa "Nessuna autenticazione" solo per endpoint pubblici che restituiscono piu dati senza token.</span>
                 </label>
 
                 <label class="space-y-1 md:col-span-2">
@@ -431,6 +442,10 @@
                             <div><dt class="text-slate-500">Query risolta</dt><dd class="break-all font-mono text-xs">{{ http_build_query($testResult['resolved_query']) }}</dd></div>
                         @endif
                         <div><dt class="text-slate-500">Items trovati</dt><dd>{{ $testResult['items_count'] }}</dd></div>
+                        <div><dt class="text-slate-500">Items path usato</dt><dd class="font-mono text-xs">{{ ($testResult['items_path'] ?? '') !== '' ? $testResult['items_path'] : 'root object' }}</dd></div>
+                        @if (! empty($testResult['audit_uuid']))
+                            <div><dt class="text-slate-500">Audit interno</dt><dd class="break-all font-mono text-xs">{{ $testResult['audit_uuid'] }}</dd></div>
+                        @endif
                     </dl>
 
                     @if (! empty($testResult['error']))
@@ -439,6 +454,37 @@
 
                     @if (! empty($testResult['warning']))
                         <div class="mt-4 rounded-xl bg-amber-50 p-3 text-amber-900 ring-1 ring-amber-200">{{ $testResult['warning'] }}</div>
+                    @endif
+
+                    @if (! empty($testResult['items_preview']))
+                        <h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Items estratti</h3>
+                        <div class="mt-2 overflow-hidden rounded-xl ring-1 ring-slate-200">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-200 text-slate-600">
+                                    <tr>
+                                        <th class="px-3 py-2">#</th>
+                                        <th class="px-3 py-2">Codice</th>
+                                        <th class="px-3 py-2">ID</th>
+                                        <th class="px-3 py-2">Nome</th>
+                                        <th class="px-3 py-2">Tipo</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200 bg-white">
+                                    @foreach ($testResult['items_preview'] as $previewItem)
+                                        <tr>
+                                            <td class="px-3 py-2 text-slate-500">{{ $loop->iteration }}</td>
+                                            <td class="px-3 py-2 font-mono">{{ $previewItem['code'] ?? '-' }}</td>
+                                            <td class="px-3 py-2 font-mono">{{ $previewItem['id'] ?? '-' }}</td>
+                                            <td class="px-3 py-2 font-semibold text-slate-900">{{ $previewItem['name'] ?? '-' }}</td>
+                                            <td class="px-3 py-2">{{ $previewItem['type'] ?? '-' }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (($testResult['items_count'] ?? 0) > count($testResult['items_preview']))
+                            <p class="mt-2 text-xs text-slate-500">Mostrati i primi {{ count($testResult['items_preview']) }} item su {{ $testResult['items_count'] }}.</p>
+                        @endif
                     @endif
 
                     <h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Preview normalizzata</h3>

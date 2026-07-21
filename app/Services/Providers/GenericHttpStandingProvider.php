@@ -2,23 +2,23 @@
 
 namespace App\Services\Providers;
 
-use App\Contracts\Providers\TeamDataProvider;
-use App\Data\Providers\ProviderTeamResult;
-use App\Data\Providers\TeamDataRequest;
-use App\Data\Seasons\CanonicalTeamData;
+use App\Contracts\Providers\StandingDataProvider;
+use App\Data\Providers\ProviderStandingResult;
+use App\Data\Providers\StandingDataRequest;
+use App\Data\Seasons\CanonicalStandingData;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Throwable;
 
-final class GenericHttpTeamProvider implements TeamDataProvider
+final class GenericHttpStandingProvider implements StandingDataProvider
 {
     /**
-     * @param  array<string, mixed>  $provider
-     * @param  array<string, mixed>  $endpoint
-     * @param  array<string, string>  $fieldMappings
-     * @param  array<string, string>  $headers
-     * @param  array<string, string>  $queryParameters
+     * @param array<string,mixed> $provider
+     * @param array<string,mixed> $endpoint
+     * @param array<string,string> $fieldMappings
+     * @param array<string,string> $headers
+     * @param array<string,string> $queryParameters
      */
     public function __construct(
         private readonly array $provider,
@@ -34,11 +34,11 @@ final class GenericHttpTeamProvider implements TeamDataProvider
         return (string) $this->provider['code'];
     }
 
-    public function fetchTeams(TeamDataRequest $request): ProviderTeamResult
+    public function fetchStandings(StandingDataRequest $request): ProviderStandingResult
     {
         $reference = $request->referenceFor($this->key());
         if ($reference === null || trim((string) $reference) === '') {
-            return ProviderTeamResult::unavailable($this->key(), 'missing_provider_reference');
+            return ProviderStandingResult::unavailable($this->key(), 'missing_provider_reference');
         }
 
         $variables = [
@@ -47,6 +47,7 @@ final class GenericHttpTeamProvider implements TeamDataProvider
             'provider_league_id' => (string) $reference,
             'league_id' => (string) $reference,
             'season_year' => (string) $request->seasonYear,
+            'season_label' => $request->seasonLabel,
         ];
 
         try {
@@ -66,13 +67,13 @@ final class GenericHttpTeamProvider implements TeamDataProvider
             $payload = $response->throw()->json();
 
             if (! is_array($payload)) {
-                return ProviderTeamResult::unavailable($this->key(), 'invalid_json_payload');
+                return ProviderStandingResult::unavailable($this->key(), 'invalid_json_payload');
             }
 
             $items = $this->mapper->extractItems($payload, $this->endpoint['items_path'] ?? null);
             app(DataProviderApiCallAuditor::class)->record(
                 provider: $this->provider,
-                endpoint: $this->endpoint + ['capability' => 'teams'],
+                endpoint: $this->endpoint + ['capability' => 'standings'],
                 method: $method,
                 url: $url,
                 query: $query,
@@ -81,30 +82,30 @@ final class GenericHttpTeamProvider implements TeamDataProvider
                 itemsCount: count($items),
                 durationMs: (int) round((microtime(true) - $startedAt) * 1000),
                 context: [
-                    'sync_type' => 'teams_sync',
+                    'sync_type' => 'standings_sync',
                     'sync_target_type' => 'season_year',
                     'sync_target_id' => $request->seasonYear,
                 ],
             );
             if ($items === []) {
-                return ProviderTeamResult::unavailable($this->key(), 'empty_payload');
+                return ProviderStandingResult::unavailable($this->key(), 'empty_payload');
             }
 
-            $teams = collect($items)
+            $standings = collect($items)
                 ->filter(fn (mixed $item): bool => is_array($item))
                 ->map(fn (array $item): array => $this->mapper->mapFields($item, $this->fieldMappings))
-                ->map(fn (array $item): CanonicalTeamData => $this->canonicalTeam($item))
-                ->filter(fn (CanonicalTeamData $team): bool => $team->externalId !== '' && $team->name !== '')
+                ->map(fn (array $item): CanonicalStandingData => $this->canonicalStanding($item))
+                ->filter(fn (CanonicalStandingData $standing): bool => $standing->providerTeamId !== '' || $standing->teamName !== '')
                 ->values()
                 ->all();
 
-            return $teams !== []
-                ? ProviderTeamResult::available($this->key(), $teams)
-                : ProviderTeamResult::unavailable($this->key(), 'mapped_payload_missing_required_team_fields');
+            return $standings !== []
+                ? ProviderStandingResult::available($this->key(), $standings)
+                : ProviderStandingResult::unavailable($this->key(), 'mapped_payload_missing_required_standing_fields');
         } catch (RequestException $e) {
             $status = $e->response->status();
             if (in_array($status, [401, 403], true)) {
-                return ProviderTeamResult::unavailable($this->key(), 'unavailable_for_current_credentials_or_plan');
+                return ProviderStandingResult::unavailable($this->key(), 'unavailable_for_current_credentials_or_plan');
             }
 
             throw $e;
@@ -120,50 +121,29 @@ final class GenericHttpTeamProvider implements TeamDataProvider
             ->timeout((int) ($this->provider['timeout'] ?? 30))
             ->retry((int) ($this->provider['retry_times'] ?? 0), (int) ($this->provider['retry_sleep_ms'] ?? 0), throw: false);
 
-        foreach ($this->headers() as $header => $value) {
+        foreach ($this->headers as $header => $value) {
             $request = $request->withHeaders([$header => $value]);
         }
 
         return $request;
     }
 
-    /**
-     * @return array<string, string>
-     */
-    private function headers(): array
-    {
-        return $this->headers;
-    }
-
     private function url(string $endpoint): string
     {
-        $baseUrl = rtrim((string) $this->provider['base_url'], '/');
-        $endpoint = ltrim($endpoint, '/');
-
-        return "{$baseUrl}/{$endpoint}";
+        return rtrim((string) $this->provider['base_url'], '/').'/'.ltrim($endpoint, '/');
     }
 
-    /**
-     * @param  array<string, mixed>  $values
-     * @param  array<string, string>  $variables
-     * @return array<string, mixed>
-     */
+    /** @param array<string,mixed> $values @param array<string,string> $variables @return array<string,mixed> */
     private function renderArray(array $values, array $variables): array
     {
         return collect($values)
-            ->map(function (mixed $value) use ($variables): mixed {
-                if (is_array($value)) {
-                    return $this->renderArray($value, $variables);
-                }
-
-                return is_string($value) ? $this->render($value, $variables) : $value;
-            })
+            ->map(fn (mixed $value): mixed => is_array($value)
+                ? $this->renderArray($value, $variables)
+                : (is_string($value) ? $this->render($value, $variables) : $value))
             ->all();
     }
 
-    /**
-     * @param  array<string, string>  $variables
-     */
+    /** @param array<string,string> $variables */
     private function render(string $value, array $variables): string
     {
         foreach ($variables as $key => $replacement) {
@@ -173,20 +153,31 @@ final class GenericHttpTeamProvider implements TeamDataProvider
         return $value;
     }
 
-    /**
-     * @param  array<string, mixed>  $item
-     */
-    private function canonicalTeam(array $item): CanonicalTeamData
+    /** @param array<string,mixed> $item */
+    private function canonicalStanding(array $item): CanonicalStandingData
     {
-        return new CanonicalTeamData(
+        return new CanonicalStandingData(
             provider: $this->key(),
-            externalId: (string) ($item['provider_team_id'] ?? $item['team_id'] ?? $item['external_id'] ?? $item['id'] ?? ''),
-            name: trim((string) ($item['team_name'] ?? $item['name'] ?? '')),
-            shortName: ($short = trim((string) ($item['short_name'] ?? $item['shortName'] ?? ''))) !== '' ? $short : null,
-            code: ($code = trim((string) ($item['team_code'] ?? $item['code'] ?? ''))) !== '' ? $code : null,
-            country: ($country = trim((string) ($item['country_name'] ?? $item['country'] ?? ''))) !== '' ? $country : null,
-            crestUrl: ($crest = trim((string) ($item['crest_url'] ?? $item['logo_url'] ?? $item['logo'] ?? ''))) !== '' ? $crest : null,
+            providerTeamId: (string) ($item['provider_team_id'] ?? $item['team_id'] ?? $item['external_id'] ?? ''),
+            teamName: trim((string) ($item['team_name'] ?? $item['name'] ?? '')),
+            teamCode: ($code = trim((string) ($item['team_code'] ?? $item['code'] ?? ''))) !== '' ? $code : null,
+            position: $this->nullableInt($item['position'] ?? null),
+            playedGames: $this->nullableInt($item['played_games'] ?? $item['playedGames'] ?? null),
+            won: $this->nullableInt($item['won'] ?? $item['wins'] ?? null),
+            draw: $this->nullableInt($item['draw'] ?? $item['draws'] ?? null),
+            lost: $this->nullableInt($item['lost'] ?? $item['losses'] ?? null),
+            points: $this->nullableInt($item['points'] ?? null),
+            goalsFor: $this->nullableInt($item['goals_for'] ?? $item['goalsFor'] ?? null),
+            goalsAgainst: $this->nullableInt($item['goals_against'] ?? $item['goalsAgainst'] ?? null),
+            goalDifference: $this->nullableInt($item['goal_difference'] ?? $item['goalDifference'] ?? null),
+            stageName: ($stage = trim((string) ($item['stage_name'] ?? ''))) !== '' ? $stage : null,
+            groupName: ($group = trim((string) ($item['group_name'] ?? ''))) !== '' ? $group : null,
             metadata: $item,
         );
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
     }
 }

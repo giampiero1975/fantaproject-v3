@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\ProviderManagementController;
 use App\Http\Controllers\Admin\SeasonManagementController;
 use App\Http\Controllers\Admin\TeamManagementController;
+use App\Http\Controllers\Admin\StandingManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -54,4 +55,7 @@ Route::middleware([
     Route::get('/teams', [TeamManagementController::class, 'index'])->name('teams.index');
     Route::post('/teams/analyze', [TeamManagementController::class, 'analyze'])->name('teams.analyze');
     Route::post('/teams/apply', [TeamManagementController::class, 'apply'])->name('teams.apply');
+    Route::get('/standings', [StandingManagementController::class, 'index'])->name('standings.index');
+    Route::post('/standings/analyze', [StandingManagementController::class, 'analyze'])->name('standings.analyze');
+    Route::post('/standings/apply', [StandingManagementController::class, 'apply'])->name('standings.apply');
 });

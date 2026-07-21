@@ -65,6 +65,8 @@ final class GenericHttpSeasonProvider
             }
 
             $url = $this->url($endpoint);
+            $method = strtoupper((string) ($this->endpoint['method'] ?? 'GET'));
+            $startedAt = microtime(true);
             $response = strtoupper((string) ($this->endpoint['method'] ?? 'GET')) === 'POST'
                 ? $httpRequest->post($url, $this->renderArray($this->endpoint['body_template'] ?? [], $variables))
                 : $httpRequest->get($url, array_merge(
@@ -79,6 +81,22 @@ final class GenericHttpSeasonProvider
             }
 
             $items = $this->mapper->extractItems($payload, $this->endpoint['items_path'] ?? null);
+            app(DataProviderApiCallAuditor::class)->record(
+                provider: $this->provider,
+                endpoint: $this->endpoint + ['capability' => 'seasons'],
+                method: $method,
+                url: $url,
+                query: array_merge($this->queryParameters, $queryParameters),
+                body: $method === 'POST' ? $this->renderArray($this->endpoint['body_template'] ?? [], $variables) : [],
+                response: $response,
+                itemsCount: count($items),
+                durationMs: (int) round((microtime(true) - $startedAt) * 1000),
+                context: [
+                    'sync_type' => 'season_sync',
+                    'sync_target_type' => 'season_year',
+                    'sync_target_id' => $request->seasonYear,
+                ],
+            );
             if ($items === []) {
                 return ProviderSeasonResult::unavailable($this->key(), 'empty_payload');
             }

@@ -19,6 +19,13 @@ const initializeProviderOnboarding = () => {
     const installedAdapterSelect = form.querySelector('[data-installed-adapter]');
     const credentialKeyLabel = credentialKeyInput?.closest('label');
     const credentialValueLabel = credentialValueInput?.closest('label');
+    let providerCapabilities = [];
+
+    try {
+        providerCapabilities = JSON.parse(container.dataset.providerCapabilities || '[]');
+    } catch {
+        providerCapabilities = [];
+    }
 
     if (!credentialKeyInput || !credentialValueInput || !credentialKeyLabel || !credentialValueLabel) {
         return;
@@ -42,8 +49,8 @@ const initializeProviderOnboarding = () => {
         <legend class="text-xs font-semibold text-slate-700">Capacità dichiarate</legend>
         <p class="text-[11px] text-slate-500">Indica quali dati il provider espone. Non attiva automaticamente l'integrazione.</p>
         <div class="mt-3 flex flex-wrap gap-4 text-sm text-slate-800">
-            ${['competitions', 'seasons', 'teams', 'fixtures', 'standings', 'players', 'statistics']
-                .map((capability) => `<label class="inline-flex items-center gap-2"><input type="checkbox" name="capabilities[]" value="${capability}" class="rounded border-slate-300">${capability}</label>`)
+            ${providerCapabilities
+                .map((capability) => `<label class="inline-flex items-center gap-2"><input type="checkbox" name="capabilities[]" value="${capability.key}" class="rounded border-slate-300">${capability.label || capability.key}</label>`)
                 .join('')}
         </div>
     `;

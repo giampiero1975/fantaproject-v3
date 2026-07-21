@@ -2,35 +2,34 @@
 
 namespace App\Services\Providers;
 
+use App\Contracts\Providers\StandingDataProvider;
 use Illuminate\Support\Facades\DB;
 
-final class SeasonProviderRegistry
+final class StandingProviderRegistry
 {
     public function __construct(
         private readonly HttpProviderPayloadMapper $mapper,
         private readonly ProviderHttpAuthentication $authentication,
     ) {}
 
-    /** @return list<GenericHttpSeasonProvider> */
+    /** @return list<StandingDataProvider> */
     public function all(): array
     {
         return collect($this->providerRows())
-            ->map(fn (object $provider): ?GenericHttpSeasonProvider => $this->providerFromRow($provider))
+            ->map(fn (object $provider): ?StandingDataProvider => $this->providerFromRow($provider))
             ->filter()
             ->values()
             ->all();
     }
 
-    /**
-     * @return list<object>
-     */
+    /** @return list<object> */
     private function providerRows(): array
     {
         return DB::table('data_providers as p')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
             ->leftJoin('data_provider_http_endpoints as e', function ($join): void {
                 $join->on('e.data_provider_id', '=', 'p.id')
-                    ->where('e.capability', 'seasons')
+                    ->where('e.capability', 'standings')
                     ->where('e.is_enabled', true);
             })
             ->leftJoin('data_provider_payload_mappings as m', 'm.data_provider_http_endpoint_id', '=', 'e.id')
@@ -40,7 +39,7 @@ final class SeasonProviderRegistry
             ->where('p.active', true)
             ->where('rc.is_enabled', true)
             ->orderByRaw('COALESCE(rc.priority, 9999)')
-            ->orderByRaw("CASE e.operation WHEN 'by_season' THEN 0 WHEN 'by_competition' THEN 1 WHEN 'detail' THEN 2 WHEN 'list' THEN 3 ELSE 4 END")
+            ->orderByRaw("CASE e.operation WHEN 'by_season' THEN 0 WHEN 'by_competition' THEN 1 ELSE 2 END")
             ->orderBy('p.name')
             ->get([
                 'p.id',
@@ -67,9 +66,13 @@ final class SeasonProviderRegistry
             ->all();
     }
 
-    private function providerFromRow(object $provider): ?GenericHttpSeasonProvider
+    private function providerFromRow(object $provider): ?StandingDataProvider
     {
-        return new GenericHttpSeasonProvider(
+        if ($provider->http_endpoint_id === null || $provider->field_mappings === null) {
+            return null;
+        }
+
+        return new GenericHttpStandingProvider(
             provider: [
                 'id' => (int) $provider->id,
                 'code' => (string) $provider->code,
@@ -82,7 +85,7 @@ final class SeasonProviderRegistry
             ],
             endpoint: [
                 'id' => (int) $provider->http_endpoint_id,
-                'capability' => 'seasons',
+                'capability' => 'standings',
                 'operation' => (string) $provider->operation,
                 'method' => (string) $provider->method,
                 'auth_mode' => (string) ($provider->auth_mode ?? 'default'),

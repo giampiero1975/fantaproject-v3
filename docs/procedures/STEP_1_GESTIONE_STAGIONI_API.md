@@ -304,6 +304,7 @@ La configurazione runtime e' composta da:
 - capability;
 - operation;
 - method;
+- auth mode;
 - endpoint;
 - query params;
 - body JSON;
@@ -329,6 +330,28 @@ season_year=2024
 ```
 
 Il test chiama l'URL risolto, ma il salvataggio mantiene i placeholder in `data_provider_http_endpoints`.
+
+L'autenticazione e' configurabile sulla singola chiamata HTTP:
+
+```text
+auth_mode = default
+```
+
+usa il token/header/query configurato sul provider.
+
+```text
+auth_mode = none
+```
+
+non invia credenziali per quello specifico endpoint.
+
+Caso Football-Data:
+
+```text
+competitions?areas=2114
+```
+
+puo' restituire una lista filtrata se chiamata con `X-Auth-Token`, mentre in modalita' pubblica restituisce la lista completa dell'area. Per il censimento competizioni si puo' quindi usare `auth_mode=none`; per endpoint operativi come standings o teams si mantiene `auth_mode=default`.
 
 Esempio:
 
@@ -445,6 +468,25 @@ Controlli finali:
 - fallback storico conforme alla configurazione;
 - secondo run idempotente;
 - nessuno scraping nel flusso ufficiale.
+
+### Audit chiamate provider
+
+Le chiamate HTTP eseguite dal Provider Lab e dai provider generici vengono tracciate in:
+
+```text
+data_provider_api_call_audits
+```
+
+La tabella conserva solo dati sintetici:
+
+- quale provider e quale endpoint configurato sono stati chiamati;
+- capability e operation usate;
+- endpoint risolto e query depurata dalle credenziali;
+- status code, durata e numero item estratti;
+- hash della risposta, senza salvare il payload raw;
+- header provider utili, come rate limit, versione API, client autenticato e data risposta.
+
+Non vengono salvati payload raw, token o campi generici vuoti. Se il provider non restituisce un request id ufficiale, il sistema non lo inventa.
 
 ---
 

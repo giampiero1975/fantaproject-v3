@@ -138,4 +138,100 @@ final class DryRunHttpProviderCommandTest extends TestCase
         $this->assertStringContainsString('query_keys', $log);
         $this->assertStringContainsString('auth_token', $log);
     }
+
+    public function test_http_provider_dry_run_can_disable_endpoint_authentication(): void
+    {
+        Http::fake([
+            'api.football-data.test/competitions*' => Http::response([
+                'count' => 2,
+                'competitions' => [
+                    ['id' => 2019, 'name' => 'Serie A', 'code' => 'SA'],
+                    ['id' => 2121, 'name' => 'Serie B', 'code' => 'SB'],
+                ],
+            ]),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.test',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_configurations')->insert([
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'auth_type',
+                'value' => 'header',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'credential_key',
+                'value' => 'token',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'data_provider_id' => $providerId,
+                'key' => 'auth_header_name',
+                'value' => 'X-Auth-Token',
+                'value_type' => 'string',
+                'environment' => null,
+                'is_secret' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        DB::table('data_provider_credentials')->insert([
+            'data_provider_id' => $providerId,
+            'environment' => app()->environment(),
+            'credential_key' => 'token',
+            'encrypted_value' => Crypt::encryptString('secret-token'),
+            'is_active' => true,
+            'rotated_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_http_endpoints')->insert([
+            'data_provider_id' => $providerId,
+            'label' => 'Competizioni pubbliche',
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'method' => 'GET',
+            'auth_mode' => 'none',
+            'endpoint' => 'competitions',
+            'query_params' => json_encode(['areas' => '{provider_area_id}']),
+            'body_template' => null,
+            'items_path' => 'competitions',
+            'is_enabled' => true,
+            'validation_status' => 'test_passed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->artisan('providers:http-dry-run', [
+            'provider' => 'football_data',
+            '--capability' => 'competitions',
+            '--operation' => 'list',
+            '--var' => ['provider_area_id=2114'],
+        ])
+            ->expectsOutputToContain('Items trovati')
+            ->expectsOutputToContain('2')
+            ->assertSuccessful();
+
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://api.football-data.test/competitions?areas=2114'
+            && ! $request->hasHeader('X-Auth-Token'));
+    }
 }

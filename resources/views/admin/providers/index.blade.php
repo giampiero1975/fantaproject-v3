@@ -277,7 +277,7 @@
             @endforeach
         </section>
 
-        <div id="nuovo-provider">
+        <div id="nuovo-provider" data-provider-capabilities='@json($providerCapabilities)'>
             <x-fo-accordion title="Aggiungi provider" subtitle="Usa questa funzione solo quando stai integrando una nuova fonte dati." bodyClass="bg-slate-100 text-slate-900">
                 <div class="mb-5 rounded-xl bg-blue-50 p-4 text-sm text-blue-950 ring-1 ring-blue-200">
                     <h3 class="font-semibold">Prima di registrare un provider</h3>
