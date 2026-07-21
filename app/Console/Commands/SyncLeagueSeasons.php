@@ -44,6 +44,9 @@ final class SyncLeagueSeasons extends Command
 
         try {
             $leagueId = $this->resolveLeagueId($leagueResolver, $providerReferences);
+            if ($providerReferences === []) {
+                $providerReferences = $this->providerReferencesFromLeague($leagueId);
+            }
             $currentSeason = $this->option('season') !== null
                 ? (int) $this->option('season')
                 : (int) now()->year;
@@ -243,6 +246,21 @@ final class SyncLeagueSeasons extends Command
         }
 
         return $resolver->resolve($providerReferences);
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function providerReferencesFromLeague(int $leagueId): array
+    {
+        return DB::table('league_provider_mappings as lpm')
+            ->join('data_providers as p', 'p.id', '=', 'lpm.data_provider_id')
+            ->join('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
+            ->where('lpm.league_id', $leagueId)
+            ->where('rc.is_enabled', true)
+            ->pluck('lpm.external_id', 'p.code')
+            ->map(fn ($externalId): string => (string) $externalId)
+            ->all();
     }
 
     private function dateValue(mixed $value): ?string

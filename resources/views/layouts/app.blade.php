@@ -44,7 +44,7 @@
                         class="fo-sidebar-group fo-sidebar-admin-group grid"
                         heading="Administration"
                         expandable
-                        :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*')"
+                        :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*', 'admin.teams.*')"
                     >
                         <div class="fo-sidebar-section-label">
                             <span>Accessi</span>
@@ -73,6 +73,15 @@
                             :current="request()->routeIs('admin.seasons.*')"
                         >
                             Gestione Stagioni
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item
+                            class="fo-sidebar-item"
+                            icon="users"
+                            href="{{ route('admin.teams.index') }}"
+                            :current="request()->routeIs('admin.teams.*')"
+                        >
+                            Squadre
                         </flux:sidebar.item>
 
                         <div class="fo-sidebar-section-label mt-3">
