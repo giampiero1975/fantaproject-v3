@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\ProviderManagementController;
 use App\Http\Controllers\Admin\SeasonManagementController;
+use App\Http\Controllers\Admin\TeamManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -50,4 +51,7 @@ Route::middleware([
     Route::post('/manage-season/provider-mappings', [SeasonManagementController::class, 'storeProviderMapping'])->name('seasons.provider-mappings.store');
     Route::post('/manage-season/analyze', [SeasonManagementController::class, 'analyze'])->name('seasons.analyze');
     Route::post('/manage-season/apply', [SeasonManagementController::class, 'apply'])->name('seasons.apply');
+    Route::get('/teams', [TeamManagementController::class, 'index'])->name('teams.index');
+    Route::post('/teams/analyze', [TeamManagementController::class, 'analyze'])->name('teams.analyze');
+    Route::post('/teams/apply', [TeamManagementController::class, 'apply'])->name('teams.apply');
 });

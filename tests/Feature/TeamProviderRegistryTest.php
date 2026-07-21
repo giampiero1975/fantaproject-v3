@@ -40,14 +40,14 @@ final class TeamProviderRegistryTest extends TestCase
             'code' => 'thesportsdb',
             'name' => 'TheSportsDB',
             'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
-            'active' => false,
+            'active' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         DB::table('data_provider_runtime_configs')->insert([
             'data_provider_id' => $providerId,
-            'is_enabled' => false,
+            'is_enabled' => true,
             'priority' => 30,
             'role' => 'fallback',
             'base_url' => 'https://www.thesportsdb.com/api/v1/json/3',
