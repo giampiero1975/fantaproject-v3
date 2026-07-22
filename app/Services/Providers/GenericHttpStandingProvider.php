@@ -172,7 +172,7 @@ final class GenericHttpStandingProvider implements StandingDataProvider
             goalDifference: $this->nullableInt($item['goal_difference'] ?? $item['goalDifference'] ?? null),
             stageName: ($stage = trim((string) ($item['stage_name'] ?? ''))) !== '' ? $stage : null,
             groupName: ($group = trim((string) ($item['group_name'] ?? ''))) !== '' ? $group : null,
-            metadata: $item,
+            metadata: [],
         );
     }
 

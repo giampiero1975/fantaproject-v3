@@ -346,7 +346,7 @@ final class SyncLeagueSeasonStandings extends Command
                         'goals_for' => $standing['goals_for'],
                         'goals_against' => $standing['goals_against'],
                         'goal_difference' => $standing['goal_difference'],
-                        'metadata' => json_encode($standing['metadata']),
+                        'metadata' => null,
                         'synced_at' => now(),
                         'updated_at' => now(),
                         'created_at' => now(),

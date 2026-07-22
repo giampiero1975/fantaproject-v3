@@ -127,6 +127,11 @@
                                             <div class="mt-1 break-all font-mono text-blue-700">?{{ http_build_query($httpMapping->query_params_decoded) }}</div>
                                         @endif
                                         <div class="mt-2 text-blue-800">Items: <code>{{ $httpMapping->items_path ?: 'root object' }}</code> · Campi: {{ count($httpMapping->field_mappings_decoded) }}</div>
+                                        @if ($httpMapping->has_shared_endpoint)
+                                            <div class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-900 ring-1 ring-amber-200">
+                                                Endpoint condiviso con: <strong>{{ implode(', ', $httpMapping->shared_endpoint_capabilities) }}</strong>.
+                                            </div>
+                                        @endif
                                         <form method="POST" action="{{ route('admin.providers.http-adapter.destroy', [$provider->id, $httpMapping->id]) }}" class="mt-3" onsubmit="return confirm('Eliminare questa configurazione HTTP salvata? Verranno rimossi anche i mapping dei campi collegati.');">
                                             @csrf
                                             @method('DELETE')

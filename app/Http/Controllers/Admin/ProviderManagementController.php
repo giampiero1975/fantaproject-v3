@@ -87,7 +87,7 @@ final class ProviderManagementController extends Controller
                         return $endpoint;
                     });
 
-                $provider->http_mappings = $httpMappings;
+                $provider->http_mappings = $this->annotateHttpEndpointRelations($httpMappings);
                 $provider->http_mappings_count = $httpMappings->count();
                 $provider->metadata_decoded = json_decode((string) $provider->metadata, true) ?: [];
                 $settings = app(ProviderConfigurationReader::class)->values((int) $provider->id);
@@ -597,6 +597,7 @@ final class ProviderManagementController extends Controller
 
                 return $endpoint;
             });
+        $savedEndpoints = $this->annotateHttpEndpointRelations($savedEndpoints);
         $isNewForm = $request->boolean('new');
         $isLoadingSavedEndpoint = ! $isNewForm
             && $request->filled('capability')
@@ -1323,6 +1324,40 @@ final class ProviderManagementController extends Controller
     }
 
     /**
+     * @param  \Illuminate\Support\Collection<int, object>  $endpoints
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function annotateHttpEndpointRelations(\Illuminate\Support\Collection $endpoints): \Illuminate\Support\Collection
+    {
+        $groups = $endpoints->groupBy(function (object $endpoint): string {
+            return implode('|', [
+                strtoupper((string) $endpoint->method),
+                trim((string) $endpoint->endpoint, '/'),
+                json_encode($endpoint->query_params_decoded ?? [], JSON_UNESCAPED_SLASHES),
+            ]);
+        });
+
+        return $endpoints->map(function (object $endpoint) use ($groups): object {
+            $signature = implode('|', [
+                strtoupper((string) $endpoint->method),
+                trim((string) $endpoint->endpoint, '/'),
+                json_encode($endpoint->query_params_decoded ?? [], JSON_UNESCAPED_SLASHES),
+            ]);
+
+            $capabilities = $groups
+                ->get($signature, collect())
+                ->pluck('capability')
+                ->unique()
+                ->values();
+
+            $endpoint->shared_endpoint_capabilities = $capabilities->all();
+            $endpoint->has_shared_endpoint = $capabilities->count() > 1;
+
+            return $endpoint;
+        });
+    }
+
+    /**
      * @return list<object{key: string, label: string}>
      */
     private function providerCapabilities(bool $runtimeConfigurableOnly = false): array
@@ -1720,8 +1755,7 @@ final class ProviderManagementController extends Controller
             ->filter(fn (mixed $item): bool => is_array($item))
             ->map(function (array $item) use ($fieldMappings): array {
                 $mapped = $this->mapFields($item, $fieldMappings);
-
-                return collect([
+                $summary = collect([
                     'code' => $mapped['provider_competition_code'] ?? $mapped['provider_team_code'] ?? $mapped['provider_country_code'] ?? data_get($item, 'code'),
                     'id' => $mapped['provider_competition_id'] ?? $mapped['provider_team_id'] ?? $mapped['provider_country_id'] ?? data_get($item, 'id'),
                     'name' => $mapped['competition_name'] ?? $mapped['team_name'] ?? $mapped['country_name'] ?? data_get($item, 'name'),
@@ -1729,6 +1763,13 @@ final class ProviderManagementController extends Controller
                 ])
                     ->filter(fn (mixed $value): bool => $value !== null && $value !== '')
                     ->all();
+
+                return $summary !== []
+                    ? $summary
+                    : collect($mapped)
+                        ->filter(fn (mixed $value): bool => $value !== null && $value !== '' && ! is_array($value))
+                        ->take(6)
+                        ->all();
             })
             ->values()
             ->all();

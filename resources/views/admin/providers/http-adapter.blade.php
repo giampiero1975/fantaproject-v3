@@ -66,6 +66,12 @@
                                     <span>Campi: {{ count($endpoint->field_mappings_decoded) }}</span>
                                     <span>Ultimo test: {{ $endpoint->last_status_code ?? 'non testato' }}</span>
                                 </div>
+                                @if ($endpoint->has_shared_endpoint)
+                                    <div class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-900 ring-1 ring-amber-200">
+                                        Stesso endpoint usato anche da: <strong>{{ implode(', ', $endpoint->shared_endpoint_capabilities) }}</strong>.
+                                        Verifica che la capability sia intenzionale.
+                                    </div>
+                                @endif
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2 lg:col-span-2 lg:justify-end">
@@ -457,26 +463,25 @@
                     @endif
 
                     @if (! empty($testResult['items_preview']))
+                        @php($previewColumns = collect($testResult['items_preview'])->flatMap(fn ($item) => array_keys($item))->unique()->values()->all())
                         <h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Items estratti</h3>
                         <div class="mt-2 overflow-hidden rounded-xl ring-1 ring-slate-200">
                             <table class="w-full text-left text-xs">
                                 <thead class="bg-slate-200 text-slate-600">
                                     <tr>
                                         <th class="px-3 py-2">#</th>
-                                        <th class="px-3 py-2">Codice</th>
-                                        <th class="px-3 py-2">ID</th>
-                                        <th class="px-3 py-2">Nome</th>
-                                        <th class="px-3 py-2">Tipo</th>
+                                        @foreach ($previewColumns as $column)
+                                            <th class="px-3 py-2">{{ \Illuminate\Support\Str::headline($column) }}</th>
+                                        @endforeach
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-200 bg-white">
                                     @foreach ($testResult['items_preview'] as $previewItem)
                                         <tr>
                                             <td class="px-3 py-2 text-slate-500">{{ $loop->iteration }}</td>
-                                            <td class="px-3 py-2 font-mono">{{ $previewItem['code'] ?? '-' }}</td>
-                                            <td class="px-3 py-2 font-mono">{{ $previewItem['id'] ?? '-' }}</td>
-                                            <td class="px-3 py-2 font-semibold text-slate-900">{{ $previewItem['name'] ?? '-' }}</td>
-                                            <td class="px-3 py-2">{{ $previewItem['type'] ?? '-' }}</td>
+                                            @foreach ($previewColumns as $column)
+                                                <td class="px-3 py-2 font-mono">{{ $previewItem[$column] ?? '-' }}</td>
+                                            @endforeach
                                         </tr>
                                     @endforeach
                                 </tbody>

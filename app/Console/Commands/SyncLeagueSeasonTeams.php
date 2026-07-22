@@ -9,7 +9,6 @@ use App\Services\Providers\TeamProviderRegistry;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
@@ -375,7 +374,7 @@ final class SyncLeagueSeasonTeams extends Command
                             'external_id' => (string) $providerTeam['external_id'],
                             'external_name' => (string) $providerTeam['name'],
                             'external_code' => $providerTeam['code'] ?? null,
-                            'metadata' => json_encode($providerTeam['metadata'] ?? [], JSON_UNESCAPED_UNICODE),
+                            'metadata' => null,
                             'verified_at' => now(),
                             'updated_at' => now(),
                         ],
@@ -404,7 +403,7 @@ final class SyncLeagueSeasonTeams extends Command
             'short_name' => $team['short_name'] ?? null,
             'code' => $team['code'] ?? null,
             'crest_url' => $team['crest_url'] ?? null,
-            'metadata' => json_encode($team['metadata'] ?? [], JSON_UNESCAPED_UNICODE),
+            'metadata' => null,
             'updated_at' => now(),
         ];
 
@@ -431,10 +430,7 @@ final class SyncLeagueSeasonTeams extends Command
 
         $values = [
             'is_active' => true,
-            'metadata' => json_encode([
-                'source' => 'teams_sync',
-                'comparison_key' => Str::slug((string) $team['name']),
-            ], JSON_UNESCAPED_UNICODE),
+            'metadata' => null,
             'updated_at' => now(),
         ];
 

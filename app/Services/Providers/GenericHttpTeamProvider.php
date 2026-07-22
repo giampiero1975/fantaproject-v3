@@ -186,7 +186,7 @@ final class GenericHttpTeamProvider implements TeamDataProvider
             code: ($code = trim((string) ($item['team_code'] ?? $item['code'] ?? ''))) !== '' ? $code : null,
             country: ($country = trim((string) ($item['country_name'] ?? $item['country'] ?? ''))) !== '' ? $country : null,
             crestUrl: ($crest = trim((string) ($item['crest_url'] ?? $item['logo_url'] ?? $item['logo'] ?? ''))) !== '' ? $crest : null,
-            metadata: $item,
+            metadata: [],
         );
     }
 }

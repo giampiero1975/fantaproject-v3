@@ -424,12 +424,9 @@ final class SyncLeagueSeasons extends Command
                         [
                             'external_id' => (string) $providerReferences[$provider['provider']],
                             'external_year' => $row['season_key'],
-                            'metadata' => json_encode([
-                                'season_external_id' => $provider['external_id'] ?? null,
-                                'start_date' => $provider['start_date'] ?? null,
-                                'end_date' => $provider['end_date'] ?? null,
-                                'payload' => $provider['metadata'] ?? [],
-                            ], JSON_UNESCAPED_UNICODE),
+                            'external_season_id' => $provider['external_id'] ?? null,
+                            'external_start_date' => $provider['start_date'] ?? null,
+                            'external_end_date' => $provider['end_date'] ?? null,
                             'verified_at' => now(),
                             'updated_at' => now(),
                         ],
