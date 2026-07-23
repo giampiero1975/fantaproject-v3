@@ -320,6 +320,7 @@ Campi:
 
 ```text
 method
+auth_mode
 label
 endpoint
 query_params
@@ -327,10 +328,35 @@ body_template
 test_variables
 ```
 
+`auth_mode` e' configurato sulla singola chiamata HTTP:
+
+```text
+default
+```
+
+usa l'autenticazione del provider salvata in `data_provider_configurations`.
+
+```text
+none
+```
+
+non invia credenziali per quella chiamata, anche se il provider ha un token configurato.
+
+Questo serve per endpoint pubblici che espongono piu' dati senza vincoli di client/piano.
+Esempio Football-Data:
+
+```text
+GET /competitions?areas=2114
+auth_mode = none
+```
+
+puo' restituire tutte le competizioni italiane dell'area, mentre la stessa chiamata autenticata puo' essere filtrata dal piano del client.
+
 Esempio:
 
 ```text
 method: GET
+auth_mode: none
 endpoint: search_all_leagues.php
 query:
   c = Italy
@@ -779,6 +805,65 @@ request_path
 
 Le credenziali non vengono mai scritte in chiaro nei log. Si traccia solo la chiave tecnica, ad esempio `token` o `api_key`.
 
+### Audit chiamate API provider
+
+Oltre al log testuale, ogni chiamata reale verso un provider viene tracciata in:
+
+```text
+data_provider_api_call_audits
+```
+
+Questa tabella non salva payload raw e non salva credenziali. Serve per avere una traccia tecnica e legale sintetica:
+
+```text
+uuid
+data_provider_id
+data_provider_http_endpoint_id
+provider_code
+capability
+operation
+method
+endpoint_template
+resolved_endpoint
+resolved_query
+status_code
+duration_ms
+items_count
+response_fingerprint
+provider_headers
+error_code
+error_message
+sync_type
+sync_target_type
+sync_target_id
+called_at
+```
+
+Regole:
+
+- `resolved_query` contiene solo query params depurati da token, api key e credenziali;
+- `provider_headers` conserva solo header utili restituiti dal provider, ad esempio versione API, rate limit, client autenticato, cache, lingua, server e data;
+- `response_fingerprint` e' un hash SHA-256 del body ricevuto, utile per provare che una certa risposta e' stata ricevuta senza conservare il payload completo;
+- se il provider non espone un request id/correlation id, non viene inventato ne' salvato un campo nullo;
+- `metadata` non e' previsto nell'audit: i dati utili devono avere colonne esplicite.
+
+Esempio Football-Data:
+
+```json
+{
+  "x-api-version": "v4",
+  "x-authenticated-client": "Giampiero Di Gregorio",
+  "x-requestcounter-reset": "60",
+  "x-requests-available-minute": "9",
+  "x-cache-status": "BYPASS",
+  "content-language": "en-US",
+  "server": "nginx",
+  "date": "Tue, 21 Jul 2026 21:34:38 GMT"
+}
+```
+
+Il `provider_request_id` non viene tracciato per Football-Data perche' la risposta non espone un identificativo univoco della chiamata.
+
 ### `data_provider_contract_fields`
 
 Contiene il contratto interno normalizzato per ogni capability. La UI non deve definire questi campi nel controller.
@@ -825,6 +910,7 @@ data_provider_id
 capability
 operation
 method
+auth_mode
 endpoint
 query_params json nullable
 body_template json nullable

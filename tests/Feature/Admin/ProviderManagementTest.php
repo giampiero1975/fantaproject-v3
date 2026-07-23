@@ -259,6 +259,36 @@ class ProviderManagementTest extends TestCase
             ->assertSee('Crea campo interno');
     }
 
+    public function test_http_adapter_capabilities_are_loaded_from_database_catalog(): void
+    {
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_capabilities')->insert([
+            'key' => 'odds',
+            'label' => 'Quote',
+            'description' => 'Capability aggiunta da catalogo DB.',
+            'is_active' => true,
+            'is_runtime_configurable' => true,
+            'sort_order' => 900,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.providers.http-adapter.configure', $providerId))
+            ->assertOk()
+            ->assertSee('value="standings"', false)
+            ->assertSee('value="odds"', false)
+            ->assertDontSee('value="fixtures"', false);
+    }
+
     public function test_http_adapter_configuration_does_not_prefill_mapping_placeholders_without_saved_endpoint(): void
     {
         $providerId = DB::table('data_providers')->insertGetId([
@@ -345,6 +375,15 @@ class ProviderManagementTest extends TestCase
                         'strCountry' => 'Italy',
                     ],
                 ],
+            ], 200, [
+                'X-Request-Id' => 'provider-request-123',
+                'X-Requests-Available' => '46',
+                'X-RequestCounter-Reset' => '61474',
+                'X-API-Version' => 'v4',
+                'X-Authenticated-Client' => 'anonymous',
+                'X-Cache-Status' => 'BYPASS',
+                'Content-Language' => 'en-US',
+                'Content-Encoding' => 'gzip',
             ]),
         ]);
 
@@ -380,8 +419,104 @@ class ProviderManagementTest extends TestCase
             'competition_name' => 'Italian Serie A',
             'country_name' => 'Italy',
         ], $result['normalized_preview']);
+        $this->assertNotEmpty($result['audit_uuid']);
+        $this->assertArrayNotHasKey('provider_request_id', $result);
+
+        $this->assertDatabaseHas('data_provider_api_call_audits', [
+            'uuid' => $result['audit_uuid'],
+            'data_provider_id' => $providerId,
+            'provider_code' => 'thesportsdb',
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'method' => 'GET',
+            'status_code' => 200,
+            'items_count' => 1,
+            'sync_type' => 'provider_lab_test',
+            'sync_target_type' => 'data_provider',
+            'sync_target_id' => $providerId,
+        ]);
+
+        $audit = DB::table('data_provider_api_call_audits')
+            ->where('uuid', $result['audit_uuid'])
+            ->first();
+
+        $this->assertNotNull($audit->response_fingerprint);
+        $this->assertSame(['c' => 'Italy'], json_decode((string) $audit->resolved_query, true));
+        $providerHeaders = json_decode((string) $audit->provider_headers, true);
+        $this->assertSame('v4', $providerHeaders['x-api-version']);
+        $this->assertSame('anonymous', $providerHeaders['x-authenticated-client']);
+        $this->assertSame('61474', $providerHeaders['x-requestcounter-reset']);
+        $this->assertSame('46', $providerHeaders['x-requestsavailable']);
+        $this->assertSame('BYPASS', $providerHeaders['x-cache-status']);
+        $this->assertSame('en-US', $providerHeaders['content-language']);
+        $this->assertSame('gzip', $providerHeaders['content-encoding']);
 
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'search_all_leagues.php'));
+    }
+
+    public function test_http_adapter_test_audit_records_unsuccessful_provider_response(): void
+    {
+        Http::fake([
+            'api.football-data.org/*' => Http::response(['message' => 'Not found'], 404, ['X-Request-Id' => 'not-found-request']),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'football_data',
+            'name' => 'football-data.org',
+            'base_url' => 'https://api.football-data.org/v4',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $endpointId = DB::table('data_provider_http_endpoints')->insertGetId([
+            'data_provider_id' => $providerId,
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'label' => 'Competition detail',
+            'method' => 'GET',
+            'endpoint' => 'competitions/{provider_competition_code}',
+            'query_params' => null,
+            'body_template' => null,
+            'items_path' => null,
+            'is_enabled' => true,
+            'validation_status' => 'saved_not_tested',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.providers.http-adapter.test', $providerId), [
+                'loaded_endpoint_id' => $endpointId,
+                'capability' => 'competitions',
+                'operation' => 'list',
+                'method' => 'GET',
+                'endpoint' => 'competitions/{provider_competition_code}',
+                'test_variables' => 'provider_competition_code=NOPE',
+                'items_path' => '',
+                'field_mappings' => "provider_competition_code=code\ncompetition_name=name\ncountry_name=area.name",
+            ])
+            ->assertRedirect();
+
+        $result = session('http_adapter_test_result');
+
+        $this->assertSame(404, $result['status']);
+        $this->assertNotEmpty($result['audit_uuid']);
+
+        $this->assertDatabaseHas('data_provider_api_call_audits', [
+            'uuid' => $result['audit_uuid'],
+            'data_provider_id' => $providerId,
+            'data_provider_http_endpoint_id' => $endpointId,
+            'provider_code' => 'football_data',
+            'capability' => 'competitions',
+            'operation' => 'list',
+            'method' => 'GET',
+            'status_code' => 404,
+            'error_code' => 'http_404',
+            'sync_type' => 'provider_lab_test',
+            'sync_target_type' => 'data_provider_http_endpoint',
+            'sync_target_id' => $endpointId,
+        ]);
     }
 
     public function test_http_adapter_test_request_can_pluck_nested_arrays_into_json_field(): void

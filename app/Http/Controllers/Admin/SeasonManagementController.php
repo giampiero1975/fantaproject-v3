@@ -7,16 +7,17 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 final class SeasonManagementController extends Controller
 {
-    /** @var list<string> */
-    private const REQUIRED_CAPABILITIES = ['competitions', 'seasons', 'teams'];
+    private const CAPABILITY_CONTEXT = 'season_management';
 
     public function index(): View
     {
+        $requiredCapabilities = $this->requiredCapabilities();
         $rows = DB::table('leagues as l')
             ->join('league_provider_mappings as lpm', 'lpm.league_id', '=', 'l.id')
             ->join('data_providers as p', 'p.id', '=', 'lpm.data_provider_id')
@@ -43,12 +44,13 @@ final class SeasonManagementController extends Controller
             ->get();
 
         $capabilities = $this->providerCapabilities(
-            $rows->pluck('provider_id')->map(fn ($id): int => (int) $id)->unique()->values()->all()
+            $rows->pluck('provider_id')->map(fn ($id): int => (int) $id)->unique()->values()->all(),
+            $requiredCapabilities,
         );
 
         $leagues = $rows
-            ->map(function (object $row) use ($capabilities): object {
-                $row->capabilities = $capabilities[(int) $row->provider_id] ?? $this->emptyCapabilities();
+            ->map(function (object $row) use ($capabilities, $requiredCapabilities): object {
+                $row->capabilities = $capabilities[(int) $row->provider_id] ?? $this->emptyCapabilities($requiredCapabilities);
                 $row->required_capabilities_ready = collect($row->capabilities)
                     ->where('ready', true)
                     ->count();
@@ -85,7 +87,7 @@ final class SeasonManagementController extends Controller
             'mappableProviders' => $this->mappableProviders(),
             'countries' => $countries,
             'timelineCoverage' => $this->timelineCoverage(),
-            'requiredCapabilities' => self::REQUIRED_CAPABILITIES,
+            'requiredCapabilities' => $requiredCapabilities,
             'historyFallback' => (int) config('seasons.history_fallback', 4),
             'lastReport' => session('season_sync_report'),
             'lastReportData' => session('season_sync_report_data'),
@@ -297,18 +299,19 @@ final class SeasonManagementController extends Controller
 
     /**
      * @param  list<int>  $providerIds
+     * @param  list<string>  $requiredCapabilities
      * @return array<int, array<string, array{configured:bool,enabled:bool,mapping_validated:bool,ready:bool,operations:list<string>}>>
      */
-    private function providerCapabilities(array $providerIds): array
+    private function providerCapabilities(array $providerIds, array $requiredCapabilities): array
     {
-        if ($providerIds === []) {
+        if ($providerIds === [] || $requiredCapabilities === []) {
             return [];
         }
 
         $endpoints = DB::table('data_provider_http_endpoints as e')
             ->leftJoin('data_provider_payload_mappings as m', 'm.data_provider_http_endpoint_id', '=', 'e.id')
             ->whereIn('e.data_provider_id', $providerIds)
-            ->whereIn('e.capability', self::REQUIRED_CAPABILITIES)
+            ->whereIn('e.capability', $requiredCapabilities)
             ->orderBy('e.capability')
             ->orderBy('e.operation')
             ->get([
@@ -325,7 +328,7 @@ final class SeasonManagementController extends Controller
 
         foreach ($providerIds as $providerId) {
             $capabilityRows = $endpoints->get($providerId, collect())->groupBy('capability');
-            $result[$providerId] = collect(self::REQUIRED_CAPABILITIES)
+            $result[$providerId] = collect($requiredCapabilities)
                 ->mapWithKeys(function (string $capability) use ($capabilityRows): array {
                     $rows = $capabilityRows->get($capability, collect());
                     $enabled = $rows->contains(fn (object $row): bool => (bool) $row->is_enabled);
@@ -352,9 +355,9 @@ final class SeasonManagementController extends Controller
     /**
      * @return array<string, array{configured:bool,enabled:bool,mapping_validated:bool,ready:bool,operations:list<string>}>
      */
-    private function emptyCapabilities(): array
+    private function emptyCapabilities(array $requiredCapabilities): array
     {
-        return collect(self::REQUIRED_CAPABILITIES)
+        return collect($requiredCapabilities)
             ->mapWithKeys(fn (string $capability): array => [
                 $capability => [
                     'configured' => false,
@@ -364,6 +367,25 @@ final class SeasonManagementController extends Controller
                     'operations' => [],
                 ],
             ])
+            ->all();
+    }
+
+    /** @return list<string> */
+    private function requiredCapabilities(): array
+    {
+        if (! Schema::hasTable('data_provider_capability_contexts')) {
+            return [];
+        }
+
+        return DB::table('data_provider_capability_contexts as ctx')
+            ->join('data_provider_capabilities as cap', 'cap.id', '=', 'ctx.data_provider_capability_id')
+            ->where('ctx.context_key', self::CAPABILITY_CONTEXT)
+            ->where('ctx.is_required', true)
+            ->where('cap.is_active', true)
+            ->orderBy('ctx.sort_order')
+            ->orderBy('cap.sort_order')
+            ->orderBy('cap.key')
+            ->pluck('cap.key')
             ->all();
     }
 

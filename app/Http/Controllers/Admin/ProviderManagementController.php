@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Services\Providers\ProviderConfigurationReader;
 use App\Services\Providers\ProviderConfigurationWriter;
+use App\Services\Providers\DataProviderApiCallAuditor;
 use App\Services\Providers\HttpProviderPayloadMapper;
 use App\Services\Providers\ProviderHttpAuthentication;
 use Illuminate\Http\Client\ConnectionException;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
@@ -26,6 +29,7 @@ final class ProviderManagementController extends Controller
     public function index(): View
     {
         $environment = app()->environment();
+        $providerCapabilities = $this->providerCapabilities();
 
         $providers = DB::table('data_providers as p')
             ->leftJoin('data_provider_runtime_configs as rc', 'rc.data_provider_id', '=', 'p.id')
@@ -83,7 +87,7 @@ final class ProviderManagementController extends Controller
                         return $endpoint;
                     });
 
-                $provider->http_mappings = $httpMappings;
+                $provider->http_mappings = $this->annotateHttpEndpointRelations($httpMappings);
                 $provider->http_mappings_count = $httpMappings->count();
                 $provider->metadata_decoded = json_decode((string) $provider->metadata, true) ?: [];
                 $settings = app(ProviderConfigurationReader::class)->values((int) $provider->id);
@@ -104,7 +108,7 @@ final class ProviderManagementController extends Controller
                 return $provider;
             });
 
-        return view('admin.providers.index', compact('providers', 'environment'));
+        return view('admin.providers.index', compact('providers', 'environment', 'providerCapabilities'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -130,7 +134,7 @@ final class ProviderManagementController extends Controller
             'credential_key' => ['nullable', 'string', 'max:120', 'required_if:credential_required,1'],
             'credential_value' => ['nullable', 'string', 'max:5000', 'required_if:credential_required,1'],
             'capabilities' => ['nullable', 'array'],
-            'capabilities.*' => ['string', 'in:countries,competitions,seasons,teams,fixtures,standings,players,statistics'],
+            'capabilities.*' => ['string', Rule::in($this->providerCapabilityKeys())],
         ]);
 
         $credentialKey = $data['credential_required'] ? ($data['credential_key'] ?? null) : null;
@@ -572,6 +576,7 @@ final class ProviderManagementController extends Controller
                 'e.operation',
                 'e.label',
                 'e.method',
+                'e.auth_mode',
                 'e.endpoint',
                 'e.query_params',
                 'e.body_template',
@@ -592,6 +597,7 @@ final class ProviderManagementController extends Controller
 
                 return $endpoint;
             });
+        $savedEndpoints = $this->annotateHttpEndpointRelations($savedEndpoints);
         $isNewForm = $request->boolean('new');
         $isLoadingSavedEndpoint = ! $isNewForm
             && $request->filled('capability')
@@ -668,8 +674,9 @@ final class ProviderManagementController extends Controller
         $endpoint = $this->renderTemplate($data['endpoint'], $testVariables);
         $url = $this->buildProviderUrl((string) $providerRow->base_url, $endpoint);
         $bodyTemplate = $this->renderTemplateArray($this->parseJsonBody($data['body_template'] ?? ''), $testVariables);
+        $authQueryParameters = $this->httpAdapterAuthQueryParameters((int) $providerRow->id, $data['auth_mode']);
         $query = array_merge(
-            app(ProviderHttpAuthentication::class)->queryParameters((int) $providerRow->id),
+            $authQueryParameters,
             $this->renderTemplateArray($this->parseKeyValueLines($data['query_params'] ?? ''), $testVariables),
         );
         $fieldMappings = $this->parseKeyValueLines($data['field_mappings'] ?? '');
@@ -687,7 +694,7 @@ final class ProviderManagementController extends Controller
 
         $unresolvedVariables = $this->unresolvedTemplateVariables([
             'endpoint' => $endpoint,
-            'query_params' => Arr::except($query, array_keys(app(ProviderHttpAuthentication::class)->queryParameters((int) $providerRow->id))),
+            'query_params' => Arr::except($query, array_keys($authQueryParameters)),
             'body_template' => $bodyTemplate,
         ]);
 
@@ -715,6 +722,7 @@ final class ProviderManagementController extends Controller
             'capability' => $data['capability'],
             'operation' => $data['operation'],
             'method' => $data['method'],
+            'auth_mode' => $data['auth_mode'],
             'url' => $url,
             'query_keys' => array_keys($query),
             'template_endpoint' => $data['endpoint'],
@@ -724,15 +732,41 @@ final class ProviderManagementController extends Controller
         ]);
 
         try {
-            $pendingRequest = $this->httpAdapterRequest($providerRow);
+            $startedAt = microtime(true);
+            $pendingRequest = $this->httpAdapterRequest($providerRow, $data['auth_mode']);
             $response = $data['method'] === 'POST'
                 ? $pendingRequest->post($url, $bodyTemplate)
                 : $pendingRequest->get($url, $query);
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
 
             $json = $response->json();
             $items = $this->extractItems($json, $data['items_path'] ?? '');
             $firstItem = $items[0] ?? null;
             $warning = null;
+            $auditUuid = app(DataProviderApiCallAuditor::class)->record(
+                provider: [
+                    'id' => (int) $providerRow->id,
+                    'code' => (string) $providerRow->code,
+                ],
+                endpoint: [
+                    'id' => (int) ($data['loaded_endpoint_id'] ?? 0),
+                    'capability' => $data['capability'],
+                    'operation' => $data['operation'],
+                    'endpoint' => $data['endpoint'],
+                ],
+                method: $data['method'],
+                url: $url,
+                query: $query,
+                body: $bodyTemplate,
+                response: $response,
+                itemsCount: count($items),
+                durationMs: $durationMs,
+                context: [
+                    'sync_type' => 'provider_lab_test',
+                    'sync_target_type' => filled($data['loaded_endpoint_id'] ?? null) ? 'data_provider_http_endpoint' : 'data_provider',
+                    'sync_target_id' => filled($data['loaded_endpoint_id'] ?? null) ? (int) $data['loaded_endpoint_id'] : (int) $providerRow->id,
+                ],
+            );
 
             if ($response->successful() && $json === null) {
                 $warning = 'Risposta HTTP 200, ma il corpo non e JSON valido o risulta vuoto.';
@@ -749,7 +783,10 @@ final class ProviderManagementController extends Controller
                 'template_endpoint' => $data['endpoint'],
                 'test_variables' => $testVariables,
                 'status' => $response->status(),
+                'audit_uuid' => $auditUuid,
                 'items_count' => count($items),
+                'items_path' => $data['items_path'] ?? '',
+                'items_preview' => $this->itemsPreview($items, $fieldMappings),
                 'first_item' => $firstItem,
                 'normalized_preview' => is_array($firstItem)
                     ? $this->mapFields($firstItem, $fieldMappings)
@@ -799,6 +836,20 @@ final class ProviderManagementController extends Controller
                     'body_preview' => Str::limit($response->body(), 500),
                     'warning' => $warning,
                 ]);
+            }
+
+            if (filled($data['loaded_endpoint_id'] ?? null)) {
+                DB::table('data_provider_http_endpoints')
+                    ->where('id', (int) $data['loaded_endpoint_id'])
+                    ->where('data_provider_id', $provider)
+                    ->update([
+                        'validation_status' => $response->successful() ? 'test_passed' : 'test_failed',
+                        'last_status_code' => $response->status(),
+                        'last_tested_at' => now(),
+                        'sample_payload' => json_encode($firstItem, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                        'sample_normalized' => json_encode($result['normalized_preview'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                        'updated_at' => now(),
+                    ]);
             }
         } catch (ConnectionException | RequestException | Throwable $e) {
             $result = [
@@ -906,6 +957,7 @@ final class ProviderManagementController extends Controller
             'capability' => $data['capability'],
             'operation' => $data['operation'],
             'method' => $data['method'],
+            'auth_mode' => $data['auth_mode'],
             'endpoint' => $data['endpoint'],
             'query_keys' => array_keys($query),
             'items_path' => $data['items_path'] ?? '',
@@ -925,6 +977,7 @@ final class ProviderManagementController extends Controller
                 [
                     'label' => ($data['label'] ?? null) ?: null,
                     'method' => $data['method'],
+                    'auth_mode' => $data['auth_mode'],
                     'endpoint' => $data['endpoint'],
                     'query_params' => $query !== [] ? json_encode($query, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
                     'body_template' => filled($data['body_template'] ?? '') ? json_encode($this->parseJsonBody($data['body_template']), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
@@ -1031,7 +1084,7 @@ final class ProviderManagementController extends Controller
         ]);
 
         $data = $request->validate([
-            'capability' => ['required', 'in:'.implode(',', $this->httpAdapterCapabilities())],
+            'capability' => ['required', Rule::in($this->httpAdapterCapabilities())],
             'operation' => ['required', 'in:list,detail,search,by_country,by_competition,by_season,by_team'],
             'field_key' => ['required', 'string', 'max:100', 'regex:/^[a-z][a-z0-9_]*$/'],
             'label' => ['required', 'string', 'max:150'],
@@ -1093,7 +1146,7 @@ final class ProviderManagementController extends Controller
         abort_unless($providerRow, 404);
 
         $data = $request->validate([
-            'capability' => ['required', 'in:'.implode(',', $this->httpAdapterCapabilities())],
+            'capability' => ['required', Rule::in($this->httpAdapterCapabilities())],
             'operation' => ['required', 'in:list,detail,search,by_country,by_competition,by_season,by_team'],
             'label' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -1141,7 +1194,7 @@ final class ProviderManagementController extends Controller
         abort_unless($providerRow, 404);
 
         $data = $request->validate([
-            'capability' => ['required', 'in:'.implode(',', $this->httpAdapterCapabilities())],
+            'capability' => ['required', Rule::in($this->httpAdapterCapabilities())],
             'operation' => ['required', 'in:list,detail,search,by_country,by_competition,by_season,by_team'],
         ]);
 
@@ -1193,11 +1246,12 @@ final class ProviderManagementController extends Controller
      */
     private function validateHttpAdapterInput(Request $request): array
     {
-        return $request->validate([
-            'capability' => ['required', 'in:'.implode(',', $this->httpAdapterCapabilities())],
+        $data = $request->validate([
+            'capability' => ['required', Rule::in($this->httpAdapterCapabilities())],
             'operation' => ['required', 'in:list,detail,search,by_country,by_competition,by_season,by_team'],
             'label' => ['nullable', 'string', 'max:150'],
             'method' => ['required', 'in:GET,POST'],
+            'auth_mode' => ['nullable', 'in:default,none'],
             'endpoint' => ['required', 'string', 'max:250'],
             'query_params' => ['nullable', 'string', 'max:4000'],
             'body_template' => ['nullable', 'string', 'max:8000'],
@@ -1206,6 +1260,10 @@ final class ProviderManagementController extends Controller
             'test_variables' => ['nullable', 'string', 'max:4000'],
             'loaded_endpoint_id' => ['nullable', 'integer'],
         ]);
+
+        $data['auth_mode'] = $data['auth_mode'] ?? 'default';
+
+        return $data;
     }
 
     /**
@@ -1266,16 +1324,93 @@ final class ProviderManagementController extends Controller
     }
 
     /**
-     * @return array<string, string>
+     * @param  \Illuminate\Support\Collection<int, object>  $endpoints
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function annotateHttpEndpointRelations(\Illuminate\Support\Collection $endpoints): \Illuminate\Support\Collection
+    {
+        $groups = $endpoints->groupBy(function (object $endpoint): string {
+            return implode('|', [
+                strtoupper((string) $endpoint->method),
+                trim((string) $endpoint->endpoint, '/'),
+                json_encode($endpoint->query_params_decoded ?? [], JSON_UNESCAPED_SLASHES),
+            ]);
+        });
+
+        return $endpoints->map(function (object $endpoint) use ($groups): object {
+            $signature = implode('|', [
+                strtoupper((string) $endpoint->method),
+                trim((string) $endpoint->endpoint, '/'),
+                json_encode($endpoint->query_params_decoded ?? [], JSON_UNESCAPED_SLASHES),
+            ]);
+
+            $capabilities = $groups
+                ->get($signature, collect())
+                ->pluck('capability')
+                ->unique()
+                ->values();
+
+            $endpoint->shared_endpoint_capabilities = $capabilities->all();
+            $endpoint->has_shared_endpoint = $capabilities->count() > 1;
+
+            return $endpoint;
+        });
+    }
+
+    /**
+     * @return list<object{key: string, label: string}>
+     */
+    private function providerCapabilities(bool $runtimeConfigurableOnly = false): array
+    {
+        if (! Schema::hasTable('data_provider_capabilities')) {
+            return DB::table('data_provider_contract_fields')
+                ->select('capability as key')
+                ->selectRaw('capability as label')
+                ->distinct()
+                ->orderBy('capability')
+                ->get()
+                ->all();
+        }
+
+        $query = DB::table('data_provider_capabilities')
+            ->where('is_active', true);
+
+        if ($runtimeConfigurableOnly) {
+            $query->where('is_runtime_configurable', true);
+        }
+
+        return $query
+            ->orderBy('sort_order')
+            ->orderBy('key')
+            ->get(['key', 'label'])
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function providerCapabilityKeys(bool $runtimeConfigurableOnly = false): array
+    {
+        if (! Schema::hasTable('data_provider_capabilities')) {
+            return DB::table('data_provider_contract_fields')
+                ->select('capability')
+                ->distinct()
+                ->orderBy('capability')
+                ->pluck('capability')
+                ->all();
+        }
+
+        return collect($this->providerCapabilities($runtimeConfigurableOnly))
+            ->pluck('key')
+            ->all();
+    }
+
+    /**
+     * @return list<string>
      */
     private function httpAdapterCapabilities(): array
     {
-        return [
-            'countries',
-            'competitions',
-            'seasons',
-            'teams',
-        ];
+        return $this->providerCapabilityKeys(runtimeConfigurableOnly: true);
     }
 
     /**
@@ -1322,7 +1457,7 @@ final class ProviderManagementController extends Controller
             ],
             'by_season' => [
                 'when' => 'Quando la richiesta dipende da una stagione gia scelta o mappata.',
-                'example' => 'teams?season=2025 oppure fixtures?season=2025',
+                'example' => 'teams?season=2025 oppure standings?season=2025',
             ],
             'by_team' => [
                 'when' => 'Quando la richiesta dipende da una squadra gia mappata.',
@@ -1341,6 +1476,7 @@ final class ProviderManagementController extends Controller
             'operation' => 'list',
             'label' => '',
             'method' => 'GET',
+            'auth_mode' => 'default',
             'endpoint' => '',
             'query_params' => '',
             'body_template' => '',
@@ -1365,6 +1501,7 @@ final class ProviderManagementController extends Controller
                 'operation' => (string) $savedEndpoint->operation,
                 'label' => (string) ($savedEndpoint->label ?? ''),
                 'method' => (string) $savedEndpoint->method,
+                'auth_mode' => (string) ($savedEndpoint->auth_mode ?? 'default'),
                 'endpoint' => (string) $savedEndpoint->endpoint,
                 'query_params' => $this->keyValueText($savedEndpoint->query_params_decoded),
                 'body_template' => $this->jsonText($savedEndpoint->body_template_decoded ?? []),
@@ -1432,7 +1569,7 @@ final class ProviderManagementController extends Controller
      */
     private function sameHttpAdapterInput(array $current, array $previous): bool
     {
-        foreach (['capability', 'operation', 'method', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings', 'test_variables', 'loaded_endpoint_id'] as $key) {
+        foreach (['capability', 'operation', 'method', 'auth_mode', 'endpoint', 'query_params', 'body_template', 'items_path', 'field_mappings', 'test_variables', 'loaded_endpoint_id'] as $key) {
             if (($current[$key] ?? null) !== ($previous[$key] ?? null)) {
                 return false;
             }
@@ -1537,11 +1674,23 @@ final class ProviderManagementController extends Controller
         return array_values(array_unique($variables));
     }
 
-    private function httpAdapterRequest(object $provider): \Illuminate\Http\Client\PendingRequest
+    private function httpAdapterRequest(object $provider, string $authMode): \Illuminate\Http\Client\PendingRequest
     {
         $request = Http::timeout(15)->acceptJson();
 
-        return app(ProviderHttpAuthentication::class)->applyHeaders($request, (int) $provider->id);
+        return $authMode === 'none'
+            ? $request
+            : app(ProviderHttpAuthentication::class)->applyHeaders($request, (int) $provider->id);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function httpAdapterAuthQueryParameters(int $providerId, string $authMode): array
+    {
+        return $authMode === 'none'
+            ? []
+            : app(ProviderHttpAuthentication::class)->queryParameters($providerId);
     }
 
     /**
@@ -1592,6 +1741,38 @@ final class ProviderManagementController extends Controller
     private function extractItems(mixed $payload, ?string $itemsPath): array
     {
         return app(HttpProviderPayloadMapper::class)->extractItems($payload, $itemsPath);
+    }
+
+    /**
+     * @param  list<mixed>  $items
+     * @param  array<string, string>  $fieldMappings
+     * @return list<array<string, mixed>>
+     */
+    private function itemsPreview(array $items, array $fieldMappings): array
+    {
+        return collect($items)
+            ->take(10)
+            ->filter(fn (mixed $item): bool => is_array($item))
+            ->map(function (array $item) use ($fieldMappings): array {
+                $mapped = $this->mapFields($item, $fieldMappings);
+                $summary = collect([
+                    'code' => $mapped['provider_competition_code'] ?? $mapped['provider_team_code'] ?? $mapped['provider_country_code'] ?? data_get($item, 'code'),
+                    'id' => $mapped['provider_competition_id'] ?? $mapped['provider_team_id'] ?? $mapped['provider_country_id'] ?? data_get($item, 'id'),
+                    'name' => $mapped['competition_name'] ?? $mapped['team_name'] ?? $mapped['country_name'] ?? data_get($item, 'name'),
+                    'type' => $mapped['competition_type'] ?? data_get($item, 'type'),
+                ])
+                    ->filter(fn (mixed $value): bool => $value !== null && $value !== '')
+                    ->all();
+
+                return $summary !== []
+                    ? $summary
+                    : collect($mapped)
+                        ->filter(fn (mixed $value): bool => $value !== null && $value !== '' && ! is_array($value))
+                        ->take(6)
+                        ->all();
+            })
+            ->values()
+            ->all();
     }
 
     /**

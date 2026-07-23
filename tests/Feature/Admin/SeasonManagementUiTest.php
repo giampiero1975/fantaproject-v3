@@ -193,6 +193,95 @@ class SeasonManagementUiTest extends TestCase
             ->assertSee('manca');
     }
 
+    public function test_season_management_required_capabilities_are_loaded_from_database_context(): void
+    {
+        $admin = User::factory()->create();
+        Role::findOrCreate('admin', 'web');
+        $admin->assignRole('admin');
+
+        $standingsCapabilityId = DB::table('data_provider_capabilities')
+            ->where('key', 'standings')
+            ->value('id');
+
+        DB::table('data_provider_capability_contexts')->insert([
+            'context_key' => 'season_management',
+            'data_provider_capability_id' => $standingsCapabilityId,
+            'is_required' => true,
+            'sort_order' => 40,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $confederationId = DB::table('confederations')->insertGetId([
+            'code' => 'UEFA',
+            'name' => 'UEFA',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $countryId = DB::table('countries')->insertGetId([
+            'confederation_id' => $confederationId,
+            'region' => 'Europe',
+            'name' => 'Italy',
+            'iso2' => 'IT',
+            'iso3' => 'ITA',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $leagueId = DB::table('leagues')->insertGetId([
+            'country_id' => $countryId,
+            'name' => 'Serie A',
+            'slug' => 'serie-a',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $providerId = DB::table('data_providers')->insertGetId([
+            'code' => 'provider_lab',
+            'name' => 'Provider Lab',
+            'base_url' => 'https://api.example.test',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('data_provider_runtime_configs')->insert([
+            'data_provider_id' => $providerId,
+            'is_enabled' => true,
+            'priority' => 10,
+            'role' => 'primary',
+            'base_url' => 'https://api.example.test',
+            'timeout' => 30,
+            'connect_timeout' => 10,
+            'retry_times' => 0,
+            'retry_sleep_ms' => 0,
+            'plan' => 'Free',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('league_provider_mappings')->insert([
+            'league_id' => $leagueId,
+            'data_provider_id' => $providerId,
+            'external_id' => 'SA',
+            'external_name' => 'Serie A',
+            'external_country' => 'Italy',
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.seasons.index'))
+            ->assertOk()
+            ->assertSee('standings')
+            ->assertSee('manca');
+    }
+
     public function test_admin_can_create_provider_mapping_from_season_management(): void
     {
         $admin = User::factory()->create();

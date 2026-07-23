@@ -69,7 +69,8 @@ final class DryRunHttpProviderCommand extends Command
             return self::FAILURE;
         }
 
-        $authQuery = $authentication->queryParameters((int) $provider->id);
+        $authMode = (string) ($endpoint->auth_mode ?? 'default');
+        $authQuery = $authMode === 'none' ? [] : $authentication->queryParameters((int) $provider->id);
         $query = array_merge($authQuery, $endpointQuery);
         $url = $this->buildUrl((string) $provider->base_url, $endpointPath);
         $fieldMappings = $this->jsonArray($endpoint->field_mappings);
@@ -81,6 +82,7 @@ final class DryRunHttpProviderCommand extends Command
             'capability' => $endpoint->capability,
             'operation' => $endpoint->operation,
             'method' => $endpoint->method,
+            'auth_mode' => $authMode,
             'url' => $url,
             'query_keys' => array_keys($query),
             'auth_query_keys' => array_keys($authQuery),
@@ -90,7 +92,10 @@ final class DryRunHttpProviderCommand extends Command
         ]);
 
         try {
-            $request = $authentication->applyHeaders(Http::timeout(15)->acceptJson(), (int) $provider->id);
+            $request = Http::timeout(15)->acceptJson();
+            if ($authMode !== 'none') {
+                $request = $authentication->applyHeaders($request, (int) $provider->id);
+            }
             $response = strtoupper((string) $endpoint->method) === 'POST'
                 ? $request->post($url, $bodyTemplate)
                 : $request->get($url, $query);
@@ -109,6 +114,7 @@ final class DryRunHttpProviderCommand extends Command
                     ['Endpoint', "#{$endpoint->id} {$endpoint->label}"],
                     ['Capability', "{$endpoint->capability} · {$endpoint->operation}"],
                     ['Metodo', $endpoint->method],
+                    ['Auth', $authMode],
                     ['URL', $url],
                     ['Query', json_encode($this->maskedQuery($query, array_keys($authQuery)), JSON_UNESCAPED_SLASHES)],
                     ['Status', (string) $response->status()],
@@ -181,6 +187,7 @@ final class DryRunHttpProviderCommand extends Command
                 'e.capability',
                 'e.operation',
                 'e.method',
+                'e.auth_mode',
                 'e.endpoint',
                 'e.query_params',
                 'e.body_template',
