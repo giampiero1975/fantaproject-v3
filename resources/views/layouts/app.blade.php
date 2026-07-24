@@ -44,7 +44,7 @@
                         class="fo-sidebar-group fo-sidebar-admin-group grid"
                         heading="Administration"
                         expandable
-                        :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*', 'admin.teams.*', 'admin.standings.*')"
+                        :expanded="request()->routeIs('admin.seasons.*', 'admin.providers.*', 'admin.teams.*', 'admin.standings.*', 'admin.team-tiers.*')"
                     >
                         <div class="fo-sidebar-section-label">
                             <span>Accessi</span>
@@ -90,6 +90,15 @@
                             :current="request()->routeIs('admin.standings.*')"
                         >
                             Classifiche
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item
+                            class="fo-sidebar-item"
+                            icon="chart-bar"
+                            href="{{ route('admin.team-tiers.index') }}"
+                            :current="request()->routeIs('admin.team-tiers.*')"
+                        >
+                            Tier Squadre
                         </flux:sidebar.item>
 
                         <div class="fo-sidebar-section-label mt-3">
