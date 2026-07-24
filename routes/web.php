@@ -3,8 +3,9 @@
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\ProviderManagementController;
 use App\Http\Controllers\Admin\SeasonManagementController;
-use App\Http\Controllers\Admin\TeamManagementController;
 use App\Http\Controllers\Admin\StandingManagementController;
+use App\Http\Controllers\Admin\TeamManagementController;
+use App\Http\Controllers\Admin\TeamTierManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -16,7 +17,6 @@ Route::get('/', function () {
         ? redirect()->route('admin.dashboard')
         : redirect()->route('dashboard');
 });
-
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
@@ -58,4 +58,8 @@ Route::middleware([
     Route::get('/standings', [StandingManagementController::class, 'index'])->name('standings.index');
     Route::post('/standings/analyze', [StandingManagementController::class, 'analyze'])->name('standings.analyze');
     Route::post('/standings/apply', [StandingManagementController::class, 'apply'])->name('standings.apply');
+    Route::get('/team-tiers', [TeamTierManagementController::class, 'index'])->name('team-tiers.index');
+    Route::post('/team-tiers/analyze', [TeamTierManagementController::class, 'analyze'])->name('team-tiers.analyze');
+    Route::post('/team-tiers/audit-performance', [TeamTierManagementController::class, 'auditPerformance'])->name('team-tiers.audit-performance');
+    Route::post('/team-tiers/apply', [TeamTierManagementController::class, 'apply'])->name('team-tiers.apply');
 });
